@@ -73,6 +73,7 @@ class WorkspacePageManager @Inject constructor(
 
     private val _state = MutableStateFlow(State())
     val state: StateFlow<State> = _state.asStateFlow()
+    private var paneCountReported = false
 
     private val _selectionEvents = MutableSharedFlow<Workspace.Id>()
     val selectionEvents = _selectionEvents.asSharedFlow()
@@ -369,18 +370,19 @@ class WorkspacePageManager @Inject constructor(
 
     suspend fun setPaneCount(count: Int) {
         log(TAG) { "Setting pane count to $count" }
+        paneCountReported = true
 
         val oldPaneCount = _state.getAndUpdate { it.copy(currentPaneCount = count) }.currentPaneCount
-        if (count == oldPaneCount) return
+        if (count > oldPaneCount) autoFillGrownPanes(count, oldPaneCount)
 
-        if (count < oldPaneCount) {
-            // The assignments survive the shrink, so a focused tab can end up on an index the
-            // narrower layout no longer draws.
-            val infos = workspaceRemote.state.first().infos
-            _state.update { it.withFocusRendered(infos) }
-            return
-        }
+        // Every report makes the layout's pane set authoritative, equal counts included: this is
+        // where a focused tab left on an unrendered index, by a shrink or by a restore that landed
+        // before the first report, gets placed.
+        val infos = workspaceRemote.peekInfos()
+        _state.update { it.withFocusRendered(infos) }
+    }
 
+    private suspend fun autoFillGrownPanes(count: Int, oldPaneCount: Int) {
         log(TAG) { "Pane count increased from $oldPaneCount to $count, checking for empty panes to fill" }
 
         // Only pay for the workspace list when a pane might need filling - growing back into
@@ -520,8 +522,8 @@ class WorkspacePageManager @Inject constructor(
 
     /**
      * A focused tab parked on an index the layout does not render is open but invisible.
-     * This moves it into an empty rendered pane, or moves focus to a rendered occupant when none of
-     * them is empty.
+     * This moves it into an empty rendered pane; with one pane it swaps it in; otherwise focus moves
+     * to a rendered occupant.
      */
     private fun State.withFocusRendered(infos: List<Workspace.Info>): State {
         val focused = focusedWorkspaceId ?: return this
@@ -540,6 +542,18 @@ class WorkspacePageManager @Inject constructor(
                     (emptyRenderedSlot to focusedRoot),
             )
         } else {
+            if (currentPaneCount == 1) {
+                // One pane shows exactly one tab, so the focused tab takes it and the occupant moves to
+                // the index the focused tab held, keeping the arrangement for the next grow.
+                val occupant = selectedWorkspaces.getValue(0)
+                val focusedIndex = selectedWorkspaces.entries.firstOrNull { it.value == focusedRoot }?.key
+                log(TAG) { "withFocusRendered: swapping $focusedRoot into the single pane, parking $occupant at $focusedIndex" }
+                return copy(
+                    selectedWorkspaces = selectedWorkspaces.filterValues { it != focusedRoot && it != occupant } +
+                        (0 to focusedRoot) +
+                        listOfNotNull(focusedIndex?.let { it to occupant }),
+                )
+            }
             // Same rule as unassignWorkspace: the lowest rendered pane, never a retained index.
             val newFocus = selectedWorkspaces.filterKeys { it in renderedSlots }.minByOrNull { it.key }?.value
                 ?: return this
@@ -607,11 +621,7 @@ class WorkspacePageManager @Inject constructor(
         focusedId: Workspace.Id?,
         selectedWorkspaces: Map<Int, Workspace.Id>,
     ) {
-        // The restored tab can still be missing from the replayed snapshot, as in
-        // handleWorkspaceSelection; a null focus has nothing to wait for.
-        val infos = workspaceRemote.state.first { state ->
-            focusedId == null || state.infos.any { it.id == focusedId }
-        }.infos
+        val infos = workspaceRemote.peekInfos()
 
         _state.update { currentState ->
             val updatedAccessTimes = if (focusedId != null) {
@@ -623,7 +633,10 @@ class WorkspacePageManager @Inject constructor(
                 focusedWorkspaceId = focusedId,
                 selectedWorkspaces = selectedWorkspaces,
                 workspaceAccessTimes = updatedAccessTimes,
-            ).withFocusRendered(infos)
+            ).let {
+                // A restore that lands before the layout has reported its pane count is placed by that report instead.
+                if (paneCountReported) it.withFocusRendered(infos) else it
+            }
         }
     }
 
