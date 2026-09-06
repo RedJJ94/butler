@@ -128,7 +128,7 @@ fun WorkspaceScreen(
     // gates BOTH layouts: an empty pane next to an occupied one is not "no tabs yet".
     val firstTabTourEligible = !state.isRestoring && state.tabWorkspaces.isEmpty()
     // With zero tabs every pane is empty, so the first one is always the one to tag - no scan needed.
-    val firstTabTourPaneNumber: Int? = if (!firstTabTourEligible || design.isSingle) null else 1
+    val firstTabTourPaneNumber: Int? = if (!firstTabTourEligible || !design.hasNavigationRail) null else 1
 
     // Both empty-state surfaces scroll vertically, so on a short viewport the create/add-tab card
     // starts below the fold with no bounds to anchor on. The tour's prepareTarget brings it in
@@ -150,7 +150,7 @@ fun WorkspaceScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         // Main workspace content
-        if (!design.isSingle) {
+        if (design.hasNavigationRail) {
             AdaptiveWorkspaceLayout(
                 design = design,
                 workspaces = state.tabWorkspaces,
@@ -557,7 +557,7 @@ fun WorkspacesScreenHost(
         closedFeedback?.let { feedback ->
             // Only while the manager is down: the overlay covers the rail, and a bar offset over a
             // full-width grid would look misplaced.
-            val railVisible = design?.isSingle == false && !pageManagerState.isManagerOverlayVisible
+            val railVisible = design?.hasNavigationRail == true && !pageManagerState.isManagerOverlayVisible
             val bottomRailVisible = railVisible && design.railPlacement == WorkspaceDesign.RailPlacement.BOTTOM
             WorkspaceClosedUndoBarHost(
                 feedback = feedback,

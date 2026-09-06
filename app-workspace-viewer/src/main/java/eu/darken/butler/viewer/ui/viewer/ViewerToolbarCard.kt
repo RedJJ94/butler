@@ -66,7 +66,7 @@ fun ViewerToolbarCard(
 
     CutoutCard(
         modifier = modifier.fillMaxWidth(),
-        cutoutContent = if (design.isSingle) {
+        cutoutContent = if (!design.hasNavigationRail) {
             {
                 WorkspaceButton(
                     currentWorkspaceId = workspaceId,

@@ -92,7 +92,7 @@ fun EditorToolbarCard(
         modifier = modifier
             .fillMaxWidth()
             .requiredHeightIn(min = minHeight),
-        cutoutContent = if (design.isSingle) {
+        cutoutContent = if (!design.hasNavigationRail) {
             {
                 WorkspaceButton(
                     currentWorkspaceId = workspaceId,

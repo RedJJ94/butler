@@ -318,7 +318,7 @@ private fun BugReportToolbarCard(
 
     CutoutCard(
         modifier = Modifier.fillMaxWidth(),
-        cutoutContent = if (design.isSingle) {
+        cutoutContent = if (!design.hasNavigationRail) {
             {
                 WorkspaceButton(
                     currentWorkspaceId = workspaceId,
