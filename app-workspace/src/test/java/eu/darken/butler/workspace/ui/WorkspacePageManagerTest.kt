@@ -1461,6 +1461,27 @@ class WorkspacePageManagerTest : BaseTest() {
         after.focusedWorkspaceId shouldBe tab
     }
 
+    /** A repeat report of the same layout changes nothing; a tab the user detached stays detached. */
+    @Test
+    fun `a repeated pane count report leaves detached panes empty`() = runTest {
+        val first = Workspace.Id()
+        val second = Workspace.Id()
+
+        stateFlow.value = WorkspaceRemote.State(
+            infos = listOf(createWorkspaceInfo(id = first), createWorkspaceInfo(id = second)),
+        )
+        pageManager.setPaneCount(2)
+        pageManager.applyRestoredUIState(first, mapOf(0 to first, 1 to second))
+        pageManager.unassignWorkspace(second)
+        pageManager.unassignWorkspace(first)
+
+        pageManager.setPaneCount(2)
+
+        val after = pageManager.state.value
+        after.selectedWorkspaces shouldBe emptyMap()
+        after.focusedWorkspaceId shouldBe first
+    }
+
     /** One pane shows exactly one tab, so the focused tab takes it; the occupant keeps a place for the next grow. */
     @Test
     fun `shrinking to one pane brings the focused tab into the pane and parks the occupant`() = runTest {

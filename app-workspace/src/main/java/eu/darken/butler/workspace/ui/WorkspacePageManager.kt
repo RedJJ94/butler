@@ -370,12 +370,16 @@ class WorkspacePageManager @Inject constructor(
 
     suspend fun setPaneCount(count: Int) {
         log(TAG) { "Setting pane count to $count" }
+        val firstReport = !paneCountReported
         paneCountReported = true
 
         val oldPaneCount = _state.getAndUpdate { it.copy(currentPaneCount = count) }.currentPaneCount
+        // A repeat report of the same layout changes nothing, and a tab the user detached stays
+        // detached; only the first report and real count changes place the focused tab.
+        if (count == oldPaneCount && !firstReport) return
         if (count > oldPaneCount) autoFillGrownPanes(count, oldPaneCount)
 
-        // Every report makes the layout's pane set authoritative, equal counts included: this is
+        // The first report and every count change make the layout's pane set authoritative: this is
         // where a focused tab left on an unrendered index, by a shrink or by a restore that landed
         // before the first report, gets placed.
         val infos = workspaceRemote.peekInfos()
