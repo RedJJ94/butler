@@ -16,9 +16,11 @@ import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldNotBe
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -1380,6 +1382,41 @@ class WorkspacePageManagerTest : BaseTest() {
         after.focusedWorkspaceId shouldBe retained
     }
 
+    /** A session saved in a wider layout can park the focused tab on an index the current layout does not draw. */
+    @Test
+    fun `restoring a focused tab on an unrendered index moves it into the empty pane`() = runTest {
+        val tab = Workspace.Id()
+
+        stateFlow.value = WorkspaceRemote.State(infos = listOf(createWorkspaceInfo(id = tab)))
+        pageManager.setPaneCount(1)
+
+        pageManager.applyRestoredUIState(tab, mapOf(1 to tab))
+
+        val after = pageManager.state.value
+        after.selectedWorkspaces shouldBe mapOf(0 to tab)
+        after.focusedWorkspaceId shouldBe tab
+    }
+
+    /** The repository publishes a restored tab a beat after creating it; the restore must wait for it. */
+    @Test
+    fun `restoring a focused tab before the repository publishes it still places it`() = runTest {
+        val tab = Workspace.Id()
+
+        stateFlow.value = WorkspaceRemote.State(infos = emptyList())
+        pageManager.setPaneCount(1)
+
+        // Undispatched so the restore reaches its wait before the tab is published.
+        val restore = launch(start = CoroutineStart.UNDISPATCHED) {
+            pageManager.applyRestoredUIState(tab, mapOf(1 to tab))
+        }
+        stateFlow.value = WorkspaceRemote.State(infos = listOf(createWorkspaceInfo(id = tab)))
+        restore.join()
+
+        val after = pageManager.state.value
+        after.selectedWorkspaces shouldBe mapOf(0 to tab)
+        after.focusedWorkspaceId shouldBe tab
+    }
+
     /** With the sole pane occupied there is nowhere to move the focused tab to, so focus moves. */
     @Test
     fun `shrinking to one pane refocuses to the rendered occupant`() = runTest {
@@ -1487,11 +1524,16 @@ class WorkspacePageManagerTest : BaseTest() {
         )
         stateFlow.value = WorkspaceRemote.State(infos = infos)
 
+        // The restore itself reads this flow, so only the outermost collection performs the write.
+        var restored = false
         every { workspaceRemote.state } returns flow {
-            pageManager.applyRestoredUIState(
-                focusedId = restoredA,
-                selectedWorkspaces = mapOf(0 to restoredA, 1 to restoredB),
-            )
+            if (!restored) {
+                restored = true
+                pageManager.applyRestoredUIState(
+                    focusedId = restoredA,
+                    selectedWorkspaces = mapOf(0 to restoredA, 1 to restoredB),
+                )
+            }
             emit(WorkspaceRemote.State(infos = infos))
         }
 
@@ -1509,8 +1551,12 @@ class WorkspacePageManagerTest : BaseTest() {
         val infos = listOf(createWorkspaceInfo(id = placed), createWorkspaceInfo(id = candidate))
         stateFlow.value = WorkspaceRemote.State(infos = infos)
 
+        var restored = false
         every { workspaceRemote.state } returns flow {
-            pageManager.applyRestoredUIState(focusedId = placed, selectedWorkspaces = mapOf(0 to placed))
+            if (!restored) {
+                restored = true
+                pageManager.applyRestoredUIState(focusedId = placed, selectedWorkspaces = mapOf(0 to placed))
+            }
             emit(WorkspaceRemote.State(infos = infos))
         }
 
@@ -1528,8 +1574,12 @@ class WorkspacePageManagerTest : BaseTest() {
         val infos = listOf(createWorkspaceInfo(id = placed), createWorkspaceInfo(id = candidate))
         stateFlow.value = WorkspaceRemote.State(infos = infos)
 
+        var restored = false
         every { workspaceRemote.state } returns flow {
-            pageManager.applyRestoredUIState(focusedId = placed, selectedWorkspaces = mapOf(0 to placed))
+            if (!restored) {
+                restored = true
+                pageManager.applyRestoredUIState(focusedId = placed, selectedWorkspaces = mapOf(0 to placed))
+            }
             emit(WorkspaceRemote.State(infos = infos))
         }
 

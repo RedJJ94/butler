@@ -601,11 +601,18 @@ class WorkspacePageManager @Inject constructor(
      * Atomically sets both focus and selections during session restoration.
      * Unlike calling setFocusedWorkspace() + setSelectedWorkspaces() separately,
      * this avoids the auto-focus side effect in setSelectedWorkspaces().
+     * A focused tab restored onto an index the current layout does not render is placed like after a shrink.
      */
-    fun applyRestoredUIState(
+    suspend fun applyRestoredUIState(
         focusedId: Workspace.Id?,
         selectedWorkspaces: Map<Int, Workspace.Id>,
     ) {
+        // The restored tab can still be missing from the replayed snapshot, as in
+        // handleWorkspaceSelection; a null focus has nothing to wait for.
+        val infos = workspaceRemote.state.first { state ->
+            focusedId == null || state.infos.any { it.id == focusedId }
+        }.infos
+
         _state.update { currentState ->
             val updatedAccessTimes = if (focusedId != null) {
                 currentState.workspaceAccessTimes + (focusedId to Clock.System.now())
@@ -616,7 +623,7 @@ class WorkspacePageManager @Inject constructor(
                 focusedWorkspaceId = focusedId,
                 selectedWorkspaces = selectedWorkspaces,
                 workspaceAccessTimes = updatedAccessTimes,
-            )
+            ).withFocusRendered(infos)
         }
     }
 
