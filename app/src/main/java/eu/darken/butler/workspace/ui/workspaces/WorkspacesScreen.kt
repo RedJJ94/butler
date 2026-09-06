@@ -157,6 +157,7 @@ fun WorkspaceScreen(
                 selected = state.selected,
                 visibleSelected = state.visibleSelected,
                 focusedId = state.focused,
+                focusedRootId = state.focusedRootId,
                 dividerPositions = dividerPositions,
                 onDividerPositionsChange = { newPositions ->
                     dividerPositions = newPositions
@@ -164,8 +165,10 @@ fun WorkspaceScreen(
                 showPaneNumbers = showPaneNumbers,
                 showPaneOverlay = showPaneOverlay,
                 onPaneMenuToggle = { isOpen ->
-                    showPaneOverlay = isOpen
-                    showPaneNumbers = isOpen
+                    // One pane offers nothing to pick, so it gets neither the scrim nor a number.
+                    val show = isOpen && design.maxPanes > 1
+                    showPaneOverlay = show
+                    showPaneNumbers = show
                 },
                 onScreenAction = onScreenAction,
                 managerDialogStates = managerDialogStates,
@@ -281,9 +284,9 @@ fun WorkspaceScreen(
  * Shared by the screen and its host: the host draws chrome outside every pane (the close-undo bar)
  * and has to know where the rail is.
  *
- * The placement follows the window, not the layout: a portrait window that ends up single-pane also
- * says BOTTOM even though it composes no rail. Everything reading it therefore gates on the rail
- * being visible rather than on the placement alone.
+ * The placement follows the window, not the layout: a portrait window that ends up single-pane
+ * without the rail also says BOTTOM. Everything reading it therefore gates on the rail being visible
+ * rather than on the placement alone.
  */
 @Composable
 fun rememberWorkspaceDesign(state: WorkspacesViewModel.State): WorkspaceDesign {
@@ -300,6 +303,7 @@ fun rememberWorkspaceDesign(state: WorkspacesViewModel.State): WorkspaceDesign {
     val effectivePaneLayout = when (effectivePanelMode) {
         WorkspacePanelMode.AUTO -> windowSizeInfo.recommendedLayout
         WorkspacePanelMode.SINGLE -> WorkspaceDesign.Layout.SINGLE
+        WorkspacePanelMode.SINGLE_RAIL -> WorkspaceDesign.Layout.SINGLE
         WorkspacePanelMode.DUAL_VERTICAL -> WorkspaceDesign.Layout.DUAL_VERTICAL
         WorkspacePanelMode.DUAL_HORIZONTAL -> WorkspaceDesign.Layout.DUAL_HORIZONTAL
         WorkspacePanelMode.TRIPLE_SIDEBAR_LEFT -> WorkspaceDesign.Layout.TRIPLE_MAIN_LEFT
@@ -314,6 +318,8 @@ fun rememberWorkspaceDesign(state: WorkspacesViewModel.State): WorkspaceDesign {
         } else {
             WorkspaceDesign.RailPlacement.BOTTOM
         },
+        hasNavigationRail = effectivePaneLayout != WorkspaceDesign.Layout.SINGLE ||
+            effectivePanelMode == WorkspacePanelMode.SINGLE_RAIL,
     )
 }
 

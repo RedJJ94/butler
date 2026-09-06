@@ -1361,6 +1361,89 @@ class WorkspacePageManagerTest : BaseTest() {
         after.selectedWorkspaces[3] shouldBe otherHidden
     }
 
+    /**
+     * A layout shrink keeps the assignments so growing back restores them, which can leave the
+     * focused tab parked on an index no pane draws - open, but invisible.
+     */
+    @Test
+    fun `shrinking to one pane moves a focused retained tab into the empty pane`() = runTest {
+        val retained = Workspace.Id()
+
+        stateFlow.value = WorkspaceRemote.State(infos = listOf(createWorkspaceInfo(id = retained)))
+        pageManager.setPaneCount(2)
+        pageManager.applyRestoredUIState(retained, mapOf(1 to retained))
+
+        pageManager.setPaneCount(1)
+
+        val after = pageManager.state.value
+        after.selectedWorkspaces shouldBe mapOf(0 to retained)
+        after.focusedWorkspaceId shouldBe retained
+    }
+
+    /** With the sole pane occupied there is nowhere to move the focused tab to, so focus moves. */
+    @Test
+    fun `shrinking to one pane refocuses to the rendered occupant`() = runTest {
+        val paneOne = Workspace.Id()
+        val paneTwo = Workspace.Id()
+
+        stateFlow.value = WorkspaceRemote.State(
+            infos = listOf(createWorkspaceInfo(id = paneOne), createWorkspaceInfo(id = paneTwo)),
+        )
+        pageManager.setPaneCount(2)
+        pageManager.applyRestoredUIState(paneTwo, mapOf(0 to paneOne, 1 to paneTwo))
+
+        pageManager.setPaneCount(1)
+
+        val after = pageManager.state.value
+        after.visiblePaneAssignments shouldBe mapOf(0 to paneOne)
+        after.focusedWorkspaceId shouldBe paneOne
+        // The arrangement a wider layout left behind is still retained.
+        after.selectedWorkspaces[1] shouldBe paneTwo
+    }
+
+    /** Closing the occupant of the only pane must not leave that pane empty while a tab is left. */
+    @Test
+    fun `closing the only pane's occupant brings a retained tab into the pane`() = runTest {
+        val visible = Workspace.Id()
+        val retained = Workspace.Id()
+
+        stateFlow.value = WorkspaceRemote.State(
+            infos = listOf(createWorkspaceInfo(id = visible), createWorkspaceInfo(id = retained)),
+        )
+        pageManager.setPaneCount(1)
+        pageManager.applyRestoredUIState(visible, mapOf(0 to visible, 1 to retained))
+
+        eventsFlow.emit(WorkspaceEvent.Closed(workspaceId = visible, callerWorkspaceId = null))
+        testScope.testScheduler.advanceUntilIdle()
+
+        val after = pageManager.state.value
+        after.selectedWorkspaces shouldBe mapOf(0 to retained)
+        after.focusedWorkspaceId shouldBe retained
+    }
+
+    /** A focus that belongs to no tab has no pane to be placed in; the UI's fallback owns it. */
+    @Test
+    fun `a dangling focus is left alone by the shrink`() = runTest {
+        val visibleTab = Workspace.Id()
+        val orphan = Workspace.Id()
+
+        stateFlow.value = WorkspaceRemote.State(
+            infos = listOf(
+                createWorkspaceInfo(id = visibleTab),
+                createWorkspaceInfo(id = orphan, callerWorkspaceId = Workspace.Id()),
+            )
+        )
+        pageManager.setPaneCount(2)
+        pageManager.handleWorkspaceSelection(visibleTab)
+        pageManager.handleWorkspaceSelection(orphan)
+        val before = pageManager.state.value.selectedWorkspaces.toMap()
+
+        pageManager.setPaneCount(1)
+
+        pageManager.state.value.selectedWorkspaces shouldBe before
+        pageManager.state.value.focusedWorkspaceId shouldBe orphan
+    }
+
     /** A workspace already in a rendered pane is only focused - no reshuffling. */
     @Test
     fun `selecting a visible workspace does not move it`() = runTest {
