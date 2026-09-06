@@ -182,7 +182,7 @@ internal fun ExplorerGridContent(
 private fun ExplorerGridContentPreview() {
     PreviewWrapper {
         ExplorerGridContent(
-            state = MockDataProvider.createReadyState().copy(viewStyle = ExplorerViewStyle.Grid()),
+            state = MockDataProvider.createReadyState().copy(viewStyle = ExplorerViewStyle(mode = ExplorerViewStyle.Mode.GRID)),
             vm = null,
             contentFocusedItem = null,
             gridState = rememberLazyGridState(),
