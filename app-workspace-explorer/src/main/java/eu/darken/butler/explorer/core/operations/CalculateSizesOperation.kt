@@ -35,12 +35,15 @@ import kotlin.time.Clock
 class CalculateSizesOperation @AssistedInject constructor(
     @Assisted workspaceId: Workspace.Id,
     @Assisted private val command: ExplorerCommand.CalculateSizes,
-    @Assisted private val store: DirectorySizeStore,
+    @Assisted store: DirectorySizeStore,
     private val gatewaySwitch: GatewaySwitch,
     private val dispatcherProvider: DispatcherProvider,
 ) : ExplorerOperation() {
 
     private val tag = logTag("Explorer", "Workspace", workspaceId.shortTag, "Operation", "CalculateSizes")
+
+    /** Dropped once this operation terminates so a retained receipt can't keep the tab's sizes alive. */
+    private var resultStore: DirectorySizeStore? = store
 
     override val metadata: Operation.Metadata = object : Operation.Metadata {
         override val origin = Operation.Metadata.Origin.Explorer(workspaceId)
@@ -109,7 +112,7 @@ class CalculateSizesOperation @AssistedInject constructor(
 
         val scan = aggregator.result(Clock.System.now())
         log(tag, INFO) { "Scanned $root: ${scan.sizes.size} folders, ${scan.errorCount} errors" }
-        store.publish(scan)
+        checkNotNull(resultStore).publish(scan)
 
         send(
             State.Completed(
@@ -122,6 +125,10 @@ class CalculateSizesOperation @AssistedInject constructor(
                 ),
             )
         )
+    }
+
+    override fun onDiscarded() {
+        resultStore = null
     }
 
     private fun scannedLabel(itemCount: Long): CaString = caString {
