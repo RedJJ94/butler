@@ -64,14 +64,44 @@ class ExplorerItemSorter @AssistedInject constructor(
         val directories = pathItems.filterIsInstance<ExplorerItem.Directory>()
         val files = pathItems.filterIsInstance<ExplorerItem.File>()
 
-        val sortedDirectories = applySortMode(context, directories, sortSettings)
+        val sortedDirectories = when (sortSettings.mode) {
+            SortSettings.Mode.SIZE -> sortDirectoriesBySize(context, directories, sortSettings.reversed)
+            else -> applySortMode(context, directories, sortSettings)
+                .let { if (sortSettings.reversed) it.reversed() else it }
+        }
         val sortedFiles = applySortMode(context, files, sortSettings)
+            .let { if (sortSettings.reversed) it.reversed() else it }
 
         return if (sortSettings.reversed) {
-            peeks + sortedFiles.reversed() + sortedDirectories.reversed()
+            peeks + sortedFiles + sortedDirectories
         } else {
             peeks + sortedDirectories + sortedFiles
         }
+    }
+
+    /**
+     * Ranks folders by the size a "Calculate sizes" run produced for them. Folders without one have
+     * nothing to rank by, so they keep their name order and stay last in both directions.
+     */
+    private fun sortDirectoriesBySize(
+        context: Context,
+        directories: List<ExplorerItem.Directory>,
+        reversed: Boolean,
+    ): List<ExplorerItem.Directory> {
+        val byName = Comparator<ExplorerItem.Directory> { a, b ->
+            NaturalSortComparator.compare(a.displayName.get(context), b.displayName.get(context))
+        }
+        val known = directories
+            .filter { (it as? ExplorerItem.RegularDirectory)?.computedSize != null }
+            .sortedWith(
+                compareBy<ExplorerItem.Directory> { (it as ExplorerItem.RegularDirectory).computedSize!!.bytes }
+                    .then(byName)
+            )
+            .let { if (reversed) it.reversed() else it }
+        val unknown = directories
+            .filter { (it as? ExplorerItem.RegularDirectory)?.computedSize == null }
+            .sortedWith(byName)
+        return known + unknown
     }
 
     private fun sortTrashItems(
