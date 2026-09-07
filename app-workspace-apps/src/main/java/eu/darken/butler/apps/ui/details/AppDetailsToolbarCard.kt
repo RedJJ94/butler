@@ -120,7 +120,7 @@ fun AppDetailsToolbarCard(
         // overlays get it too - the tab underneath stays swipeable and the manager renders the
         // overlay as the face of its owning tab's card, so the switcher is neither unreachable nor
         // meaningless there.
-        cutoutContent = if (design.isSingle) {
+        cutoutContent = if (!design.hasNavigationRail) {
             {
                 WorkspaceButton(
                     buttonSize = if (isCollapsed) WorkspaceButtonDefaults.sizeCompact else WorkspaceButtonDefaults.sizeDefault,

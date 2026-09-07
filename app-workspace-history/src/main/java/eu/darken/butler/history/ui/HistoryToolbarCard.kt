@@ -73,7 +73,7 @@ fun HistoryToolbarCard(
         modifier = modifier
             .fillMaxWidth()
             .requiredHeightIn(min = WorkspaceToolbarDefaults.animatedMinHeight(isCollapsed)),
-        cutoutContent = if (design.isSingle) {
+        cutoutContent = if (!design.hasNavigationRail) {
             {
                 WorkspaceButton(
                     currentWorkspaceId = workspaceId,

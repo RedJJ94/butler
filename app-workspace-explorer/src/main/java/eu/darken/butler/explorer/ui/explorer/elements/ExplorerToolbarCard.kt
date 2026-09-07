@@ -93,7 +93,7 @@ fun ExplorerToolbarCard(
             .fillMaxWidth()
             .requiredHeightIn(min = WorkspaceToolbarDefaults.animatedMinHeight(isCollapsed)),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
-        cutoutContent = if (design.isSingle && pickerSelection == null) {
+        cutoutContent = if (!design.hasNavigationRail && pickerSelection == null) {
             {
                 WorkspaceButton(
                     currentWorkspaceId = workspaceId,

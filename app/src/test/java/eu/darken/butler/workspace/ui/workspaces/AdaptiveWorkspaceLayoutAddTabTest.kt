@@ -81,6 +81,7 @@ class AdaptiveWorkspaceLayoutAddTabTest : ComposeTest() {
                         workspaces = listOf(tab),
                         selected = mapOf(0 to tab.asPaneInfo()),
                         focusedId = tab.id,
+                        focusedRootId = tab.id,
                         dividerPositions = DividerPositions(),
                         onDividerPositionsChange = {},
                         showPaneNumbers = false,
