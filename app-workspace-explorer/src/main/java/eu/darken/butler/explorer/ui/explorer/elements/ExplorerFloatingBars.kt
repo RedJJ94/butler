@@ -103,6 +103,9 @@ internal fun FloatingBarScope.ExplorerTopBars(
             onSelectAll = { vm?.selectAll() },
             canSelectMultiple = state.pickerConfig?.selection?.isMultiSelect != false,
             isTrashDisabled = !state.trashEnabled,
+            sizesScannedAt = state.directorySizesScannedAt,
+            isCalculatingSizes = state.isCalculatingSizes,
+            onCalculateSizes = { vm?.onCalculateSizes() },
         )
     }
 }

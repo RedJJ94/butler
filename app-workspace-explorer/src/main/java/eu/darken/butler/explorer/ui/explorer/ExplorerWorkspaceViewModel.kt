@@ -71,6 +71,7 @@ import eu.darken.butler.explorer.core.favorites.FavoriteFeedback
 import eu.darken.butler.explorer.core.favorites.applyFavoritePriority
 import eu.darken.butler.explorer.core.ArchiveCompressionDefaults
 import eu.darken.butler.explorer.core.operations.ExplorerCommand
+import eu.darken.butler.explorer.core.sizes.DirectorySizeStore
 import eu.darken.butler.explorer.core.sorting.ExplorerItemSorter
 import eu.darken.butler.explorer.core.sorting.rules.ExplorerTabSortStore
 import eu.darken.butler.explorer.core.sorting.rules.FolderSortRulesRepo
@@ -152,6 +153,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.PolymorphicSerializer
 import kotlinx.serialization.json.Json
+import kotlin.time.Instant
 import kotlin.uuid.Uuid
 import eu.darken.butler.workspace.R as WorkspaceR
 
@@ -330,6 +332,10 @@ class ExplorerWorkspaceViewModel @AssistedInject constructor(
 
     private val workspaceReadyState: Flow<ExplorerWorkspace.State.Ready?> = workspaceState.map {
         it as? ExplorerWorkspace.State.Ready
+    }
+
+    private val directorySizes: Flow<DirectorySizeStore.Snapshot?> = workspaceSource.flatMapLatest { ws ->
+        ws?.directorySizes?.snapshot ?: flowOf(null)
     }
 
     // Declared here rather than beside the other controllers: it consumes workspaceReadyState, so a
@@ -531,6 +537,11 @@ class ExplorerWorkspaceViewModel @AssistedInject constructor(
          * then never be seen as true and the refresh would produce no visible feedback at all.
          */
         val refreshId: Int = 0,
+        /** When the sizes covering this folder were calculated, null while it has none. */
+        val directorySizesScannedAt: Instant? = null,
+        val isCalculatingSizes: Boolean = false,
+        /** What the proportion bars are scaled against: the largest size in the displayed listing. */
+        val largestDirectorySize: Long? = null,
     ) {
         val progress = currentLocation?.progress
         val info = currentLocation?.info
@@ -641,7 +652,8 @@ class ExplorerWorkspaceViewModel @AssistedInject constructor(
                     focus.focusedIndex,
                     favoritesRepo.favorites,
                     favoritesController.feedback,
-                ) { wsStateInner, items, selectionState, viewStyle, dialogState, resolvedSort, upgradeInfo, filterState, useRegexPatterns, useBackButtonForNavigation, pickerConfig, recycleBinEnabled, saveAsFilename, highlightedItemIds, focusedItemIndex, favorites, favoriteFeedback ->
+                    directorySizes,
+                ) { wsStateInner, items, selectionState, viewStyle, dialogState, resolvedSort, upgradeInfo, filterState, useRegexPatterns, useBackButtonForNavigation, pickerConfig, recycleBinEnabled, saveAsFilename, highlightedItemIds, focusedItemIndex, favorites, favoriteFeedback, sizes ->
                     val disabledItems = items?.let { pickerHelper.computeDisabledItems(it, pickerConfig) } ?: emptySet()
 
                     // flatMapLatest does not clear this combine's last sort value: until the new
@@ -655,6 +667,10 @@ class ExplorerWorkspaceViewModel @AssistedInject constructor(
                         selectedItems = selectionState.selectedItems,
                         saveAsFilename = saveAsFilename,
                     )
+
+                    val directoryPath = (wsStateInner.currentLocation as? ExplorerLocation.Directory)?.path
+                    val sizesScannedAt = directoryPath?.let { sizes?.scanFor(it)?.scannedAt }
+                    val isCalculatingSizes = directoryPath?.let { sizes?.isRunning(it) } == true
 
                     val rawActions = wsStateInner.currentLocation?.let {
                         actionProvider.getActions(
@@ -680,6 +696,9 @@ class ExplorerWorkspaceViewModel @AssistedInject constructor(
                                 is ExplorerActionBarItem.Common.Sort -> action.copy(
                                     isEnabled = action.isEnabled && matchedSort != null,
                                     badge = matchedSort?.resolution?.winnerKey != null,
+                                )
+                                is ExplorerActionBarItem.Directory.CalculateSizes -> action.copy(
+                                    isEnabled = !isCalculatingSizes,
                                 )
                                 else -> action
                             }
@@ -724,6 +743,14 @@ class ExplorerWorkspaceViewModel @AssistedInject constructor(
                             && wsStateInner.currentLocation is ExplorerLocation.Home
                             && favorites.isNotEmpty(),
                         favoriteFeedback = favoriteFeedback,
+                        directorySizesScannedAt = sizesScannedAt,
+                        isCalculatingSizes = isCalculatingSizes,
+                        largestDirectorySize = items
+                            ?.asSequence()
+                            ?.filterIsInstance<ExplorerItem.RegularDirectory>()
+                            ?.mapNotNull { it.computedSize?.bytes }
+                            ?.maxOrNull()
+                            ?.takeIf { it > 0 },
                     )
                 }
             }
@@ -862,6 +889,12 @@ class ExplorerWorkspaceViewModel @AssistedInject constructor(
                 )
             )
         }
+    }
+
+    /** The info bar's "Sizes from …" chip: re-runs the calculation for the current folder. */
+    fun onCalculateSizes() = launch {
+        val directory = getState().currentLocation as? ExplorerLocation.Directory ?: return@launch
+        getWorkspace().calculateSizes(directory.path)
     }
 
     fun executeAction(action: ExplorerActionBarItem) = launch {
@@ -1065,6 +1098,10 @@ class ExplorerWorkspaceViewModel @AssistedInject constructor(
                     return@launch
                 }
                 navigation.refresh()
+            }
+            is ExplorerActionBarItem.Directory.CalculateSizes -> {
+                val directory = stateSnap.currentLocation as? ExplorerLocation.Directory ?: return@launch
+                getWorkspace().calculateSizes(directory.path)
             }
             is ExplorerActionBarItem.Common.AddToFavorites -> {
                 favoritesController.addAll(action.items)

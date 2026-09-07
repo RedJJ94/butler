@@ -92,6 +92,8 @@ internal fun FileRowBase(
     /** Overrides the muted default, for a tertiary line that carries a state worth noticing. */
     tertiaryColor: Color? = null,
     trailingContent: (@Composable () -> Unit)? = null,
+    /** Composed below the text lines, e.g. a size proportion bar. */
+    bottomContent: (@Composable () -> Unit)? = null,
     hasProblematicChars: Boolean = false,
 ) {
     // Animate highlight background color
@@ -219,6 +221,12 @@ internal fun FileRowBase(
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
+                }
+            }
+
+            bottomContent?.let {
+                Box(modifier = Modifier.padding(top = 4.dp)) {
+                    it()
                 }
             }
         }

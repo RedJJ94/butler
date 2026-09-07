@@ -20,8 +20,11 @@ import eu.darken.butler.common.DateTimeStyle
 import eu.darken.butler.common.files.APath
 import eu.darken.butler.common.formatDateTime
 import eu.darken.butler.explorer.ui.explorer.items.ItemDecorations
+import eu.darken.butler.explorer.ui.explorer.items.SizeProportionBar
+import eu.darken.butler.explorer.ui.explorer.items.directorySizeLabel
 import eu.darken.butler.explorer.R
 import eu.darken.butler.explorer.core.engine.ExplorerItem
+import eu.darken.butler.explorer.core.sizes.DirectorySize
 import eu.darken.butler.explorer.ui.explorer.preview.MockDataProvider
 import eu.darken.butler.workspace.ui.preview.FolderPreviewCollage
 import eu.darken.butler.workspace.ui.preview.rememberFolderPreviewChildren
@@ -42,7 +45,14 @@ internal fun DirectoryGrid(
     isHighlighted: Boolean = false,
     decorations: ItemDecorations = ItemDecorations(),
     previewsSettled: State<Boolean> = PREVIEWS_ALWAYS_SETTLED,
+    sizeFraction: Float? = null,
 ) {
+    val sizeLabel = item.computedSize?.let { directorySizeLabel(it) }
+    val countLabel = when (val count = item.childCount) {
+        0 -> stringResource(R.string.explorer_file_empty)
+        null -> null
+        else -> stringResource(R.string.explorer_file_items_count, count)
+    }
     FileGridBase(
         modifier = modifier,
         item = item,
@@ -69,13 +79,17 @@ internal fun DirectoryGrid(
             )
         },
         primaryText = item.displayName.get(LocalContext.current),
-        secondaryText = when (val count = item.childCount) {
-            0 -> stringResource(R.string.explorer_file_empty)
-            null -> null
-            else -> stringResource(R.string.explorer_file_items_count, count)
-        },
+        secondaryText = listOfNotNull(sizeLabel, countLabel).joinToString(" • ").takeIf { it.isNotEmpty() },
         tertiaryText = item.lookup.modifiedAt?.let { formatDateTime(it, DateTimeStyle.COMPACT) },
-        backgroundColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+        backgroundColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+        bottomContent = sizeFraction?.let { fraction ->
+            {
+                SizeProportionBar(
+                    fraction = fraction,
+                    isComplete = item.computedSize?.isComplete != false,
+                )
+            }
+        },
     )
 }
 
@@ -120,6 +134,42 @@ private fun DirectoryGridSelectedPreview() {
         onToggleSelection = {},
         onClick = {},
         showSelection = true
+    )
+}
+
+@Preview2
+@ComposePreviewWrapper(ButlerPreviewWrapper::class)
+@Composable
+private fun DirectoryGridSizedPreview() {
+    DirectoryGrid(
+        item = MockDataProvider.createMockDirectory(
+            name = "Pictures",
+            childCount = 128,
+            computedSize = DirectorySize(bytes = MockDataProvider.MockSizes.gb(2), isComplete = true),
+        ),
+        isSelected = false,
+        onToggleSelection = {},
+        onClick = {},
+        showSelection = false,
+        sizeFraction = 0.6f,
+    )
+}
+
+@Preview2
+@ComposePreviewWrapper(ButlerPreviewWrapper::class)
+@Composable
+private fun DirectoryGridPartialSizePreview() {
+    DirectoryGrid(
+        item = MockDataProvider.createMockDirectory(
+            name = "Android",
+            childCount = 4,
+            computedSize = DirectorySize(bytes = MockDataProvider.MockSizes.mb(512), isComplete = false),
+        ),
+        isSelected = false,
+        onToggleSelection = {},
+        onClick = {},
+        showSelection = false,
+        sizeFraction = 0.3f,
     )
 }
 

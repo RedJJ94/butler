@@ -3,6 +3,7 @@ package eu.darken.butler.explorer.ui.explorer.elements
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.twotone.Close
+import androidx.compose.material.icons.twotone.DataUsage
 import androidx.compose.material.icons.twotone.Delete
 import androidx.compose.material.icons.twotone.Description
 import androidx.compose.material.icons.twotone.Folder
@@ -23,6 +24,8 @@ import eu.darken.butler.common.ca.CaString
 import eu.darken.butler.common.compose.ButlerPreviewWrapper
 import eu.darken.butler.common.compose.Preview2
 import eu.darken.butler.common.compose.PreviewWrapper
+import eu.darken.butler.common.DateTimeStyle
+import eu.darken.butler.common.formatDateTime
 import eu.darken.butler.common.formatFileSize
 import eu.darken.butler.common.progress.Progress
 import eu.darken.butler.common.R as CommonR
@@ -31,6 +34,7 @@ import eu.darken.butler.explorer.core.engine.ExplorerLocation
 import eu.darken.butler.explorer.ui.explorer.preview.MockDataProvider
 import eu.darken.butler.workspace.ui.InfoChip
 import eu.darken.butler.workspace.ui.WorkspaceInfoBar
+import kotlin.time.Instant
 
 @Composable
 fun ExplorerInfoBar(
@@ -47,6 +51,9 @@ fun ExplorerInfoBar(
     onSelectAll: () -> Unit = {},
     canSelectMultiple: Boolean = true,
     isTrashDisabled: Boolean = false,
+    sizesScannedAt: Instant? = null,
+    isCalculatingSizes: Boolean = false,
+    onCalculateSizes: () -> Unit = {},
 ) {
     val context = LocalContext.current
     // Single-select pickers cap the selection at one item, so bulk-select chips stay inert
@@ -217,6 +224,17 @@ fun ExplorerInfoBar(
                 is ExplorerLocation.Directory.Info -> {
                     Spacer(modifier = Modifier.weight(1f))
 
+                    if (sizesScannedAt != null && selectedCount == 0) {
+                        InfoChip(
+                            icon = Icons.TwoTone.DataUsage,
+                            label = stringResource(
+                                R.string.explorer_infobar_sizes_scanned_at,
+                                formatDateTime(sizesScannedAt, DateTimeStyle.COMPACT),
+                            ),
+                            onClick = onCalculateSizes.takeIf { !isCalculatingSizes },
+                        )
+                    }
+
                     if (info.totalSize != null && selectedCount == 0) {
                         InfoChip(
                             icon = Icons.TwoTone.Scale,
@@ -325,6 +343,16 @@ private fun ExplorerInfoBarWithSelectionPreview() {
         info = MockDataProvider.createMockDirectoryInfo(fileCount = 42, directoryCount = 7),
         selectedCount = 3,
         selectedSize = MockDataProvider.MockSizes.mb(128),
+    )
+}
+
+@Preview2
+@ComposePreviewWrapper(ButlerPreviewWrapper::class)
+@Composable
+private fun ExplorerInfoBarSizesPreview() {
+    ExplorerInfoBar(
+        info = MockDataProvider.createMockDirectoryInfo(fileCount = 42, directoryCount = 7),
+        sizesScannedAt = Instant.parse("2026-09-07T14:32:00Z"),
     )
 }
 

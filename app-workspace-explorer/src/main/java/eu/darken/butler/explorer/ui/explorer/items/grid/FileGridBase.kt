@@ -54,6 +54,8 @@ internal fun FileGridBase(
     backgroundColor: Color = MaterialTheme.colorScheme.surfaceVariant,
     previewContent: @Composable (() -> Unit)? = null,
     trailingContent: (@Composable () -> Unit)? = null,
+    /** Composed below the tile's text lines, e.g. a size proportion bar. */
+    bottomContent: (@Composable () -> Unit)? = null,
 ) {
     // Animate highlight border color
     val highlightBorderColor by animateColorAsState(
@@ -188,6 +190,12 @@ internal fun FileGridBase(
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.fillMaxWidth()
                         )
+                    }
+
+                    bottomContent?.let {
+                        Box(modifier = Modifier.padding(top = 4.dp)) {
+                            it()
+                        }
                     }
                 }
             }
