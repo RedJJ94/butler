@@ -52,15 +52,23 @@ class DirectorySizeStore {
     /**
      * Stores [scan], unless it was marked stale while it ran - publishing it then would overwrite
      * the store with a pre-change total stamped with a post-change time.
+     *
+     * @return true when [scan] was stored, false when it was dropped as stale.
      */
-    fun publish(scan: DirectoryScan) {
+    fun publish(scan: DirectoryScan): Boolean {
         val key = scan.root.path
+        var stored = false
         _snapshot.update { current ->
-            if (key in current.stale) return@update current
+            if (key in current.stale) {
+                stored = false
+                return@update current
+            }
             // A fresh parent covers everything below it.
             val retained = current.scans.filterValues { !scan.root.isAncestorOf(it.root) }
+            stored = true
             current.copy(scans = retained + (key to scan))
         }
+        return stored
     }
 
     /**

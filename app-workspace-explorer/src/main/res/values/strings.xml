@@ -559,6 +559,7 @@
         <item quantity="one">Calculated the sizes of %1$d folders, %2$d location could not be read.</item>
         <item quantity="other">Calculated the sizes of %1$d folders, %2$d locations could not be read.</item>
     </plurals>
+    <string name="explorer_operation_calculate_sizes_summary_discarded">Folder sizes for \"%1$s\" were discarded because it changed during the calculation.</string>
 
     <!-- Navigation Error Messages -->
     <string name="explorer_navigation_error_title">Navigation failed</string>

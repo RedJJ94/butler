@@ -88,6 +88,26 @@ class CalculateSizesOperationTest : BaseTest() {
     }
 
     @Test
+    fun `a scan invalidated while it ran reports that it was discarded`() = runTest {
+        coEvery { gateway.walk(any(), any(), any()) } returns flow {
+            emit(lookup("/a/file", FileType.FILE, size = 10L))
+        }
+        val store = DirectorySizeStore()
+        store.markRunning(root)
+        store.invalidate(listOf(LocalPath.build("/a/x")))
+
+        val completed = operation(store, realIoDispatchers)
+            .perform(context())
+            .last() as ExplorerOperation.State.Completed
+
+        completed.error shouldBe null
+        val report = completed.report as CalculateSizesOperation.Report
+        report.wasDiscarded shouldBe true
+
+        store.snapshot.value.scanFor(root) shouldBe null
+    }
+
+    @Test
     fun `a cancelled scan publishes nothing`() = runTest {
         coEvery { gateway.walk(any(), any(), any()) } returns flow { awaitCancellation() }
         val store = DirectorySizeStore()

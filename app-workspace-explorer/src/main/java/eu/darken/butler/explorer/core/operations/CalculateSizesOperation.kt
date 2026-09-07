@@ -112,7 +112,7 @@ class CalculateSizesOperation @AssistedInject constructor(
 
         val scan = aggregator.result(Clock.System.now())
         log(tag, INFO) { "Scanned $root: ${scan.sizes.size} folders, ${scan.errorCount} errors" }
-        checkNotNull(resultStore).publish(scan)
+        val stored = checkNotNull(resultStore).publish(scan)
 
         send(
             State.Completed(
@@ -122,6 +122,7 @@ class CalculateSizesOperation @AssistedInject constructor(
                     directoryCount = scan.sizes.size,
                     itemCount = scan.itemCount,
                     errorCount = scan.errorCount,
+                    wasDiscarded = !stored,
                 ),
             )
         )
@@ -144,10 +145,16 @@ class CalculateSizesOperation @AssistedInject constructor(
         val directoryCount: Int,
         val itemCount: Long,
         val errorCount: Int,
+        val wasDiscarded: Boolean,
     ) : ExplorerOperation.Report {
 
         override val summary: CaString = caString {
-            if (errorCount == 0) {
+            if (wasDiscarded) {
+                it.getString(
+                    R.string.explorer_operation_calculate_sizes_summary_discarded,
+                    root.userReadablePath.get(it),
+                )
+            } else if (errorCount == 0) {
                 it.getString(R.string.explorer_operation_calculate_sizes_summary, directoryCount)
             } else {
                 it.getQuantityString2(

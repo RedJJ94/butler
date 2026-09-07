@@ -25,7 +25,7 @@ class DirectorySizeStoreTest : BaseTest() {
     @Test
     fun `a scan covers its root and everything below it`() {
         val store = DirectorySizeStore()
-        store.publish(scan("/a", "/a" to 10L, "/a/b" to 4L))
+        store.publish(scan("/a", "/a" to 10L, "/a/b" to 4L)) shouldBe true
 
         store.snapshot.value.scanFor(path("/a")).shouldNotBeNull().root.path shouldBe "/a"
         store.snapshot.value.scanFor(path("/a/b")).shouldNotBeNull().root.path shouldBe "/a"
@@ -101,7 +101,7 @@ class DirectorySizeStoreTest : BaseTest() {
         store.markRunning(path("/a")) shouldBe true
 
         store.invalidate(listOf(path("/a/x")))
-        store.publish(scan("/a", "/a" to 10L))
+        store.publish(scan("/a", "/a" to 10L)) shouldBe false
 
         store.snapshot.value.scanFor(path("/a")) shouldBe null
 
