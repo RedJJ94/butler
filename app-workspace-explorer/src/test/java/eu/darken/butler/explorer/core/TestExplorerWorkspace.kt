@@ -2,7 +2,9 @@ package eu.darken.butler.explorer.core
 
 import eu.darken.butler.common.error.ErrorIncidentStore
 import eu.darken.butler.explorer.core.engine.BrowsingEngine
+import eu.darken.butler.explorer.core.operations.CalculateSizesOperation
 import eu.darken.butler.workspace.contracts.explorer.ExplorerArguments
+import eu.darken.butler.workspace.core.filesystem.FileSystemHinter
 import eu.darken.butler.workspace.core.Workspace
 import eu.darken.butler.workspace.core.operations.ManagedOperation
 import eu.darken.butler.workspace.core.operations.OperationsManager
@@ -30,6 +32,8 @@ internal fun testExplorerWorkspace(
     id: Workspace.Id = Workspace.Id(),
     browsingEngine: BrowsingEngine? = null,
     errorIncidentStore: ErrorIncidentStore = recordingIncidentStore(),
+    fileSystemHinter: FileSystemHinter = mockk(relaxed = true),
+    calculateSizesOperationFactory: CalculateSizesOperation.Factory = mockk(relaxed = true),
 ) = ExplorerWorkspace(
     id = id,
     creationArguments = arguments,
@@ -37,7 +41,7 @@ internal fun testExplorerWorkspace(
     browsingEngineFactory = browsingEngine
         ?.let { engine -> mockk<BrowsingEngine.Factory> { every { create(any(), any()) } returns engine } }
         ?: mockk(relaxed = true),
-    fileSystemHinter = mockk(relaxed = true),
+    fileSystemHinter = fileSystemHinter,
     pathAccessTracker = mockk(relaxed = true),
     issueHandler = mockk(relaxed = true),
     operationsManager = mockk<OperationsManager>(relaxed = true).apply {
@@ -52,6 +56,7 @@ internal fun testExplorerWorkspace(
     extractOperationFactory = mockk(relaxed = true),
     downloadLocalCopyOperationFactory = mockk(relaxed = true),
     restoreOperationFactory = mockk(relaxed = true),
+    calculateSizesOperationFactory = calculateSizesOperationFactory,
     explorerSettings = mockk(relaxed = true),
     errorIncidentStore = errorIncidentStore,
 )

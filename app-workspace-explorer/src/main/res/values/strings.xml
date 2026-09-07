@@ -43,6 +43,7 @@
     <string name="explorer_file_broken_link_label">Broken link</string>
     <string name="explorer_file_items_count">%1$d items</string>
     <string name="explorer_file_empty">Empty</string>
+    <string name="explorer_file_size_partial">≥ %1$s</string>
 
     <!-- Picker Mode -->
     <string name="explorer_picker_select_directory_title">Select folder</string>
@@ -74,6 +75,7 @@
 
     <!-- Explorer Actions -->
     <string name="explorer_action_refresh">Refresh</string>
+    <string name="explorer_action_calculate_sizes">Calculate sizes</string>
     <string name="explorer_action_sort">Sort</string>
     <string name="explorer_action_filter">Filter</string>
     <string name="explorer_action_view">View</string>
@@ -227,6 +229,7 @@
         <item quantity="other">%d locations</item>
     </plurals>
     <string name="explorer_infobar_storage_free">%1$s free</string>
+    <string name="explorer_infobar_sizes_scanned_at">Sizes from %1$s</string>
     <string name="explorer_infobar_loading">Loading…</string>
 
     <!-- Dialogs -->
@@ -545,6 +548,17 @@
     <string name="explorer_operation_create_description_file">Create file \"%1$s\" at \"%2$s\"</string>
     <string name="explorer_operation_create_text_file_title">Text file creation</string>
     <string name="explorer_operation_create_text_file_description">Create \"%1$s\" from text snippet</string>
+    <string name="explorer_operation_calculate_sizes_title">Size calculation</string>
+    <string name="explorer_operation_calculate_sizes_description">Calculate folder sizes in \"%1$s\".</string>
+    <plurals name="explorer_operation_calculate_sizes_progress">
+        <item quantity="one">%1$d item scanned</item>
+        <item quantity="other">%1$d items scanned</item>
+    </plurals>
+    <string name="explorer_operation_calculate_sizes_summary">Calculated the sizes of %1$d folders.</string>
+    <plurals name="explorer_operation_calculate_sizes_summary_partial">
+        <item quantity="one">Calculated the sizes of %1$d folders, %2$d location could not be read.</item>
+        <item quantity="other">Calculated the sizes of %1$d folders, %2$d locations could not be read.</item>
+    </plurals>
 
     <!-- Navigation Error Messages -->
     <string name="explorer_navigation_error_title">Navigation failed</string>
