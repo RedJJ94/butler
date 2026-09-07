@@ -41,7 +41,7 @@ class MascotPaletteTest : BaseTest() {
 
     // Every color the butler is drawn from. Props (the coffee cup) sit outside the outfit.
     private val knownPalette = setOf(
-        0x212121, // ink: the moustache, and ko's crossed-out eyes
+        0x212121, // ink: the moustache, tie, and ko's crossed-out eyes
         0x262626, // suit
         0x1e1e1e, // trousers
         0x3f3f3f, // lapel shadow
@@ -55,13 +55,13 @@ class MascotPaletteTest : BaseTest() {
         0x707070, // coffee
     )
 
-    // Drawable to the number of ink fills it carries: the moustache everywhere, plus ko's four
+    // Drawable to the number of ink fills it carries: the moustache and tie, plus ko's four
     // crossed-out eye strokes.
     private val mascotDrawables = mapOf(
-        "mascot_normal" to 1,
-        "mascot_happy" to 1,
-        "mascot_sad" to 1,
-        "mascot_ko" to 5,
+        "mascot_normal" to 2,
+        "mascot_happy" to 2,
+        "mascot_sad" to 2,
+        "mascot_ko" to 6,
     )
 
     // The "c" key is what makes it a fill or stroke color rather than an anchor that happens to be
@@ -94,12 +94,12 @@ class MascotPaletteTest : BaseTest() {
         }
     }
 
-    // He wears the same outfit in every clip: 1 ink (the moustache), 5 suit (jacket, two upper
-    // arms, hat and tie), 2 trousers, and the lapel work. Counts rather than presence, so moving a
+    // He wears the same outfit in every clip: 2 ink (moustache and tie), 4 suit (jacket, two upper
+    // arms and hat), 2 trousers, and the lapel work. Counts rather than presence, so moving a
     // single fill from ink back to suit shows up.
     private val outfitFills = mapOf(
-        0x212121 to 1,
-        0x262626 to 5,
+        0x212121 to 2,
+        0x262626 to 4,
         0x1e1e1e to 2,
         0x3f3f3f to 2,
         0x565656 to 1,
@@ -142,13 +142,11 @@ class MascotPaletteTest : BaseTest() {
     fun `forNight repaints the suit and leaves the ink alone`() {
         val counted = colorCounts(MascotPalette.forNight(rawJson(R.raw.mascot_lottie_wink)))
 
-        // All five outfit fills lightened, and the day values that are also in the map as keys
-        // were each remapped once, not chained through a second entry.
-        counted[0x4d4d4d] shouldBe 5
+        counted[0xaeb8b2] shouldBe 4  // jacket, arms and hat
         counted[0x262626] shouldBe null
-        counted[0x6c6c6c] shouldBe 1   // lapel edge, left: #565656 -> #6c6c6c, not #6c6c6c -> beyond
-        counted[0x212121] shouldBe 1   // the moustache held
-        counted[0x48ff80] shouldBe 1   // so did the head
+        counted[0xc5cec8] shouldBe 1  // lapel edge, left
+        counted[0x212121] shouldBe 2  // moustache and tie stay dark
+        counted[0x48ff80] shouldBe 1  // head
     }
 
     @Test
@@ -176,7 +174,7 @@ class MascotPaletteTest : BaseTest() {
                 (counted["mascot_ink"] ?: 0) shouldBe inkFills
             }
             mapOf(
-                "mascot_suit" to 5, "mascot_trousers" to 2, "mascot_lapel_shadow" to 2,
+                "mascot_suit" to 4, "mascot_trousers" to 2, "mascot_lapel_shadow" to 2,
                 "mascot_lapel_edge_left" to 1, "mascot_lapel_edge_right" to 1, "mascot_cuffs" to 2,
             ).forEach { (resource, expected) ->
                 withClue("$name uses ${counted[resource] ?: 0} of $resource, expected $expected") {
