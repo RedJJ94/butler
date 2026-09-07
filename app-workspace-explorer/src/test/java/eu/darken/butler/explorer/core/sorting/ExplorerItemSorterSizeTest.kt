@@ -1,0 +1,75 @@
+package eu.darken.butler.explorer.core.sorting
+
+import android.content.Context
+import eu.darken.butler.common.files.LocalPath
+import eu.darken.butler.common.files.MimeInfo
+import eu.darken.butler.common.files.local.LocalPathLookup
+import eu.darken.butler.common.files.metadata.FileType
+import eu.darken.butler.explorer.core.SortSettings
+import eu.darken.butler.explorer.core.engine.ExplorerItem
+import eu.darken.butler.explorer.core.sizes.DirectorySize
+import eu.darken.butler.workspace.core.Workspace
+import io.kotest.matchers.shouldBe
+import io.mockk.mockk
+import org.junit.jupiter.api.Test
+import testhelpers.BaseTest
+
+class ExplorerItemSorterSizeTest : BaseTest() {
+
+    private val sorter = ExplorerItemSorter(
+        workspaceId = Workspace.Id(),
+        context = mockk<Context>(relaxed = true),
+    )
+
+    private fun directory(name: String, computedSize: Long? = null) = ExplorerItem.RegularDirectory(
+        lookup = LocalPathLookup(
+            lookedUp = LocalPath.build("/a/$name"),
+            fileType = FileType.DIRECTORY,
+            size = null,
+            modifiedAt = null,
+        ),
+        computedSize = computedSize?.let { DirectorySize(it, true) },
+    )
+
+    private fun file(name: String, size: Long) = ExplorerItem.RegularFile(
+        lookup = LocalPathLookup(
+            lookedUp = LocalPath.build("/a/$name"),
+            fileType = FileType.FILE,
+            size = size,
+            modifiedAt = null,
+        ),
+        mimeType = MimeInfo("text/plain"),
+    )
+
+    private fun List<ExplorerItem>.names() = map { (it as ExplorerItem.Lookup).lookup.name }
+
+    private val items = listOf(
+        directory("big", computedSize = 300L),
+        directory("small", computedSize = 100L),
+        directory("zeta"),
+        directory("alpha"),
+        file("large.txt", 900L),
+        file("tiny.txt", 1L),
+    )
+
+    @Test
+    fun `size sort ranks folders by their calculated size, unknown ones last`() {
+        val sorted = sorter.sortItems(items, SortSettings(mode = SortSettings.Mode.SIZE))
+
+        sorted.names() shouldBe listOf("small", "big", "alpha", "zeta", "tiny.txt", "large.txt")
+    }
+
+    @Test
+    fun `reversing flips the ranked folders but leaves the unknown ones last and name-ordered`() {
+        val sorted = sorter.sortItems(items, SortSettings(mode = SortSettings.Mode.SIZE, reversed = true))
+
+        sorted.names() shouldBe listOf("large.txt", "tiny.txt", "big", "small", "alpha", "zeta")
+    }
+
+    @Test
+    fun `name sort is unaffected by calculated sizes`() {
+        val sorted = sorter.sortItems(items, SortSettings(mode = SortSettings.Mode.NAME))
+
+        sorted.names() shouldBe listOf("alpha", "big", "small", "zeta", "large.txt", "tiny.txt")
+    }
+}

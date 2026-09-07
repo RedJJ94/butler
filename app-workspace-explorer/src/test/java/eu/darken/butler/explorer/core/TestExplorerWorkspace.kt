@@ -34,6 +34,9 @@ internal fun testExplorerWorkspace(
     errorIncidentStore: ErrorIncidentStore = recordingIncidentStore(),
     fileSystemHinter: FileSystemHinter = mockk(relaxed = true),
     calculateSizesOperationFactory: CalculateSizesOperation.Factory = mockk(relaxed = true),
+    operationsManager: OperationsManager = mockk<OperationsManager>(relaxed = true).apply {
+        every { operations } returns MutableStateFlow(emptyList<ManagedOperation>())
+    },
 ) = ExplorerWorkspace(
     id = id,
     creationArguments = arguments,
@@ -44,9 +47,7 @@ internal fun testExplorerWorkspace(
     fileSystemHinter = fileSystemHinter,
     pathAccessTracker = mockk(relaxed = true),
     issueHandler = mockk(relaxed = true),
-    operationsManager = mockk<OperationsManager>(relaxed = true).apply {
-        every { operations } returns MutableStateFlow(emptyList<ManagedOperation>())
-    },
+    operationsManager = operationsManager,
     deleteOperationFactory = mockk(relaxed = true),
     createOperationFactory = mockk(relaxed = true),
     createTextFileOperationFactory = mockk(relaxed = true),
