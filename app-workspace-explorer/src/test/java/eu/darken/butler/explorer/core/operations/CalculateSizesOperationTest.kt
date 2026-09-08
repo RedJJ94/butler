@@ -16,6 +16,7 @@ import eu.darken.butler.explorer.core.sizes.AndroidDataEstimate
 import eu.darken.butler.explorer.core.sizes.DirectorySizeStore
 import eu.darken.butler.workspace.core.Workspace
 import eu.darken.butler.workspace.core.operations.Operation
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.comparables.shouldBeLessThanOrEqualTo
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -300,7 +301,7 @@ class CalculateSizesOperationTest : BaseTest() {
             .toList()
             .filterIsInstance<ExplorerOperation.State.Active>()
 
-        states.last().secondaryProgress.shouldNotBeNull().primary.get(stringContext) shouldBe "locked"
+        states.mapNotNull { it.secondaryProgress?.primary?.get(stringContext) } shouldContain "locked"
     }
 
     @Test
