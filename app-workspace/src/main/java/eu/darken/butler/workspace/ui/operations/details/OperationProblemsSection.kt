@@ -50,10 +50,7 @@ internal fun OperationProblemsSection(
                 .heightIn(max = 300.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            items(
-                items = problemList,
-                key = { it.path.path },
-            ) { problem ->
+            items(items = problemList) { problem ->
                 Column(modifier = Modifier.fillMaxWidth()) {
                     Text(
                         text = problem.path.userReadablePath.asComposable(),

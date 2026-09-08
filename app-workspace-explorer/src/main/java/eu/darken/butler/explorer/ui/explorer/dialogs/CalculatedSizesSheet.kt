@@ -221,10 +221,7 @@ private fun ProblemList(
             .heightIn(max = 240.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        items(
-            items = problems,
-            key = { it.path.path },
-        ) { problem ->
+        items(items = problems) { problem ->
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
                     text = problem.path.userReadablePath.asComposable(),
