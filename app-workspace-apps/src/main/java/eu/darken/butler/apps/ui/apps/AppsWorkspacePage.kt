@@ -153,6 +153,12 @@ fun AppsWorkspacePage(
             position = BarPosition.BOTTOM,
             modifier = Modifier.align(Alignment.BottomCenter),
             bars = {
+                WorkspaceOperationsFloatingBar(
+                    key = AppsBarKeys.OPERATIONS,
+                    operations = operationsState.operations,
+                    onAction = { onPageAction(AppsPageAction.OperationBar(it)) },
+                )
+
                 FloatingBar(
                     key = AppsBarKeys.ACTIONS,
                     visible = hasActions,
@@ -167,12 +173,6 @@ fun AppsWorkspacePage(
                         },
                     )
                 }
-
-                WorkspaceOperationsFloatingBar(
-                    key = AppsBarKeys.OPERATIONS,
-                    operations = operationsState.operations,
-                    onAction = { onPageAction(AppsPageAction.OperationBar(it)) },
-                )
             },
         )
     }

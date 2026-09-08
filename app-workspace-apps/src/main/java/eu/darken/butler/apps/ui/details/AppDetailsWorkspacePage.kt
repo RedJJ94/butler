@@ -433,6 +433,12 @@ fun AppDetailsWorkspacePage(
             position = BarPosition.BOTTOM,
             modifier = Modifier.align(Alignment.BottomCenter),
             bars = {
+                WorkspaceOperationsFloatingBar(
+                    key = AppDetailsBarKeys.OPERATIONS,
+                    operations = operationsState.operations,
+                    onAction = { onPageAction(AppDetailsPageAction.OperationBar(it)) },
+                )
+
                 FloatingBar(
                     key = AppDetailsBarKeys.ACTIONS,
                     visible = showComponents && componentActions.any { it.isVisible },
@@ -447,12 +453,6 @@ fun AppDetailsWorkspacePage(
                         },
                     )
                 }
-
-                WorkspaceOperationsFloatingBar(
-                    key = AppDetailsBarKeys.OPERATIONS,
-                    operations = operationsState.operations,
-                    onAction = { onPageAction(AppDetailsPageAction.OperationBar(it)) },
-                )
             },
         )
     }
