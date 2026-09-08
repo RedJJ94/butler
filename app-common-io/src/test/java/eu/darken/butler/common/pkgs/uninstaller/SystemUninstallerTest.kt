@@ -175,6 +175,21 @@ class SystemUninstallerTest : BaseTest() {
         outcome.getCompleted().isSuccess shouldBe true
     }
 
+    /** An update announces itself as a removal, but the package is still installed afterwards. */
+    @Test
+    fun `a replacing removal event does not end the wait`() = runTest {
+        val (job, outcome) = startUninstall()
+
+        packageEvents.emit(PackageEventListener.Event.PackageRemoved(Pkg.Id(PKG), isReplacing = true))
+        runCurrent()
+
+        job.isActive shouldBe true
+
+        relay.publish(status(requestedIds().single(), PackageInstaller.STATUS_SUCCESS))
+        runCurrent()
+        outcome.getCompleted().isSuccess shouldBe true
+    }
+
     @Test
     fun `a target belonging to another user is refused before anything is requested`() = runTest {
         val (_, outcome) = startUninstall(uninstaller = create(currentUser = 11))

@@ -30,7 +30,7 @@ class PackageEventListener @Inject constructor(
 ) {
     sealed class Event {
         data class PackageInstalled(val packageId: Pkg.Id) : Event()
-        data class PackageRemoved(val packageId: Pkg.Id) : Event()
+        data class PackageRemoved(val packageId: Pkg.Id, val isReplacing: Boolean = false) : Event()
     }
 
     val events: Flow<Event> = callbackFlow {
@@ -47,7 +47,10 @@ class PackageEventListener @Inject constructor(
                         Intent.ACTION_PACKAGE_REMOVED -> {
                             val pkgId = intent.data?.encodedSchemeSpecificPart?.toPkgId()
                                 ?: throw IllegalArgumentException("Package Info is missing in ${intent.data}")
-                            Event.PackageRemoved(pkgId)
+                            Event.PackageRemoved(
+                                packageId = pkgId,
+                                isReplacing = intent.getBooleanExtra(Intent.EXTRA_REPLACING, false),
+                            )
                         }
 
                         else -> throw IllegalArgumentException("Unknown intent action: ${intent.action}")

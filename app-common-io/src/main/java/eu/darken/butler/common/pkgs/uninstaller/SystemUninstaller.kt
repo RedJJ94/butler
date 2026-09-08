@@ -96,7 +96,8 @@ class SystemUninstaller @Inject constructor(
             val removalJob = launch(start = CoroutineStart.UNDISPATCHED) {
                 packageEventListener.events
                     .filterIsInstance<PackageEventListener.Event.PackageRemoved>()
-                    .filter { it.packageId == installId.pkgId }
+                    // An update is announced as a removal with EXTRA_REPLACING, the package is still there afterwards.
+                    .filter { it.packageId == installId.pkgId && !it.isReplacing }
                     .collect { signals.send(Signal.Removed) }
             }
 
