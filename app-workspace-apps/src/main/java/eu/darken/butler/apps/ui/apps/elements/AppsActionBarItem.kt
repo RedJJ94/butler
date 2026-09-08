@@ -5,8 +5,6 @@ import androidx.compose.material.icons.automirrored.twotone.Launch
 import androidx.compose.material.icons.automirrored.twotone.OpenInNew
 import androidx.compose.material.icons.automirrored.twotone.Sort
 import androidx.compose.material.icons.automirrored.twotone.ViewList
-import androidx.compose.material.icons.twotone.Block
-import androidx.compose.material.icons.twotone.CheckCircle
 import androidx.compose.material.icons.twotone.Delete
 import androidx.compose.material.icons.twotone.DeleteSweep
 import androidx.compose.material.icons.twotone.Deselect
@@ -23,6 +21,8 @@ import eu.darken.butler.apps.R
 import eu.darken.butler.apps.core.engine.AppItem
 import eu.darken.butler.common.ca.CaString
 import eu.darken.butler.common.ca.toCaString
+import eu.darken.butler.common.compose.icons.Snowflake
+import eu.darken.butler.common.compose.icons.SnowflakeOff
 import eu.darken.butler.common.files.APath
 import eu.darken.butler.workspace.contracts.apps.AppsViewStyle
 import eu.darken.butler.workspace.ui.actions.WorkspaceActionBarItem
@@ -81,7 +81,7 @@ sealed interface AppsActionBarItem : WorkspaceActionBarItem {
     data class Disable(
         val apps: List<AppItem>,
     ) : AppsActionBarItem {
-        override val icon = Icons.TwoTone.Block
+        override val icon = Icons.TwoTone.Snowflake
         override val label = R.string.apps_action_disable.toCaString()
         override val isDestructive = false
         override val isVisible: Boolean get() = apps.all { it.isEnabled }
@@ -90,7 +90,7 @@ sealed interface AppsActionBarItem : WorkspaceActionBarItem {
     data class Enable(
         val apps: List<AppItem>,
     ) : AppsActionBarItem {
-        override val icon = Icons.TwoTone.CheckCircle
+        override val icon = Icons.TwoTone.SnowflakeOff
         override val label = R.string.apps_action_enable.toCaString()
         override val isVisible: Boolean get() = apps.any { !it.isEnabled }
     }

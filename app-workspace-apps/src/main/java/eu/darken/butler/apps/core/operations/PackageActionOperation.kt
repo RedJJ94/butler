@@ -2,8 +2,6 @@ package eu.darken.butler.apps.core.operations
 
 import android.content.Context
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.twotone.Block
-import androidx.compose.material.icons.twotone.CheckCircle
 import androidx.compose.material.icons.twotone.Delete
 import androidx.compose.material.icons.twotone.DeleteSweep
 import androidx.compose.material.icons.twotone.Extension
@@ -18,6 +16,8 @@ import eu.darken.butler.apps.core.AppSizeCache
 import eu.darken.butler.common.ElevatedAccessUnavailableException
 import eu.darken.butler.common.ca.CaString
 import eu.darken.butler.common.ca.caString
+import eu.darken.butler.common.compose.icons.Snowflake
+import eu.darken.butler.common.compose.icons.SnowflakeOff
 import eu.darken.butler.common.debug.logging.Logging.Priority.*
 import eu.darken.butler.common.debug.logging.asLog
 import eu.darken.butler.common.debug.logging.log
@@ -59,8 +59,8 @@ class PackageActionOperation @AssistedInject constructor(
     override val metadata: Operation.Metadata = object : Operation.Metadata {
         override val origin = actionOrigin
         override val icon: ImageVector = when (command) {
-            is PackageCommand.Enable -> Icons.TwoTone.CheckCircle
-            is PackageCommand.Disable -> Icons.TwoTone.Block
+            is PackageCommand.Enable -> Icons.TwoTone.SnowflakeOff
+            is PackageCommand.Disable -> Icons.TwoTone.Snowflake
             is PackageCommand.ForceStop -> Icons.TwoTone.StopCircle
             is PackageCommand.ClearData -> Icons.TwoTone.DeleteSweep
             is PackageCommand.Uninstall -> Icons.TwoTone.Delete

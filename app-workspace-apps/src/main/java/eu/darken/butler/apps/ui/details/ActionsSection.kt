@@ -9,8 +9,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.twotone.Launch
-import androidx.compose.material.icons.twotone.Block
-import androidx.compose.material.icons.twotone.CheckCircle
 import androidx.compose.material.icons.twotone.Delete
 import androidx.compose.material.icons.twotone.DeleteForever
 import androidx.compose.material.icons.twotone.GetApp
@@ -35,6 +33,8 @@ import eu.darken.butler.apps.ui.apps.preview.AppsMockDataProvider
 import eu.darken.butler.common.compose.ButlerPreviewWrapper
 import eu.darken.butler.common.compose.Preview2
 import eu.darken.butler.common.compose.PreviewWrapper
+import eu.darken.butler.common.compose.icons.Snowflake
+import eu.darken.butler.common.compose.icons.SnowflakeOff
 
 // Sealed class for app actions - more idiomatic Kotlin
 sealed class AppAction {
@@ -57,7 +57,7 @@ sealed class AppAction {
 
     // Management actions
     data class EnableDisable(val isEnabled: Boolean) : AppAction() {
-        override val icon = if (isEnabled) Icons.TwoTone.Block else Icons.TwoTone.CheckCircle
+        override val icon = if (isEnabled) Icons.TwoTone.Snowflake else Icons.TwoTone.SnowflakeOff
         override val titleRes = if (isEnabled) R.string.apps_action_disable else R.string.apps_action_enable
         override val descriptionRes =
             if (isEnabled) R.string.apps_action_disable_desc else R.string.apps_action_enable_desc

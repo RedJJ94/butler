@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.twotone.DriveFileMove
 import androidx.compose.material.icons.automirrored.twotone.NoteAdd
-import androidx.compose.material.icons.twotone.Block
 import androidx.compose.material.icons.twotone.Cancel
 import androidx.compose.material.icons.twotone.CheckCircle
 import androidx.compose.material.icons.twotone.Compress
@@ -53,6 +52,8 @@ import androidx.compose.ui.tooling.preview.PreviewWrapper as ComposePreviewWrapp
 import androidx.compose.ui.unit.dp
 import eu.darken.butler.common.compose.ButlerPreviewWrapper
 import eu.darken.butler.common.compose.Preview2
+import eu.darken.butler.common.compose.icons.Snowflake
+import eu.darken.butler.common.compose.icons.SnowflakeOff
 import eu.darken.butler.common.formatRelativeTime
 import eu.darken.butler.history.R
 import eu.darken.butler.history.core.headlineLabelRes
@@ -238,8 +239,8 @@ internal fun Operation.Metadata.Kind.icon(): ImageVector = when (this) {
     Operation.Metadata.Kind.EXTRACT -> Icons.TwoTone.Unarchive
     Operation.Metadata.Kind.RESTORE -> Icons.TwoTone.Restore
     Operation.Metadata.Kind.INSTALL -> Icons.TwoTone.InstallMobile
-    Operation.Metadata.Kind.ENABLE -> Icons.TwoTone.CheckCircle
-    Operation.Metadata.Kind.DISABLE -> Icons.TwoTone.Block
+    Operation.Metadata.Kind.ENABLE -> Icons.TwoTone.SnowflakeOff
+    Operation.Metadata.Kind.DISABLE -> Icons.TwoTone.Snowflake
     Operation.Metadata.Kind.FORCE_STOP -> Icons.TwoTone.StopCircle
     Operation.Metadata.Kind.UNINSTALL -> Icons.TwoTone.Delete
     Operation.Metadata.Kind.CLEAR_DATA -> Icons.TwoTone.DeleteSweep
