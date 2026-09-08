@@ -4,6 +4,7 @@ import android.content.Context
 import eu.darken.butler.history.R
 import eu.darken.butler.workspace.core.operations.history.HistoryEntry
 import eu.darken.butler.workspace.core.operations.history.OperationHistoryRepo
+import eu.darken.butler.workspace.ui.operations.details.labelRes
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlin.time.toJavaInstant
@@ -95,7 +96,21 @@ private fun HistoryEntry.toShareBlock(
     }
 
     append('\n')
-    if (paths.isEmpty()) {
+    if (kind.isPackageKind) {
+        if (packages.isEmpty()) {
+            append(context.getString(R.string.history_detail_packages_empty)).append('\n')
+        } else {
+            append("**").append(context.getString(R.string.history_share_label_packages, packages.size)).append("**\n")
+            packages.forEach { outcome ->
+                append("- ").append(context.getString(outcome.status.labelRes)).append(": ")
+                append(singleLine(outcome.label))
+                append(" (").append(singleLine(outcome.packageName)).append(")").append('\n')
+                outcome.errorMessage?.takeIf { it.isNotBlank() }?.let {
+                    append("  ").append(singleLine(it)).append('\n')
+                }
+            }
+        }
+    } else if (paths.isEmpty()) {
         append(context.getString(R.string.history_detail_paths_empty)).append('\n')
         val attempted = attemptedPaths?.paths.orEmpty()
         if (attempted.isNotEmpty()) {

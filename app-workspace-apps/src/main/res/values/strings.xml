@@ -142,6 +142,9 @@
 
     <!-- App Details package data -->
     <string name="apps_details_pkgdata_error_title">Could not load app data</string>
+    <string name="apps_details_gone_title">App removed</string>
+    <string name="apps_details_gone_message">This app is no longer installed on this device.</string>
+    <string name="apps_details_gone_close_action">Close</string>
     <string name="apps_details_uninstalled_title">Uninstalled for this user</string>
     <string name="apps_details_uninstalled_message">The app is no longer installed for this user, but its files are still on the device.</string>
 
@@ -236,6 +239,59 @@
         <item quantity="one">%d component selected</item>
         <item quantity="other">%d components selected</item>
     </plurals>
+
+    <!-- Package operations -->
+    <plurals name="apps_operation_enable_title">
+        <item quantity="one">Enable app</item>
+        <item quantity="other">Enable %d apps</item>
+    </plurals>
+    <plurals name="apps_operation_disable_title">
+        <item quantity="one">Disable app</item>
+        <item quantity="other">Disable %d apps</item>
+    </plurals>
+    <plurals name="apps_operation_force_stop_title">
+        <item quantity="one">Force stop app</item>
+        <item quantity="other">Force stop %d apps</item>
+    </plurals>
+    <plurals name="apps_operation_uninstall_title">
+        <item quantity="one">Uninstall app</item>
+        <item quantity="other">Uninstall %d apps</item>
+    </plurals>
+    <plurals name="apps_operation_clear_data_title">
+        <item quantity="one">Clear app data</item>
+        <item quantity="other">Clear data of %d apps</item>
+    </plurals>
+    <plurals name="apps_operation_components_enable_title">
+        <item quantity="one">Enable component</item>
+        <item quantity="other">Enable %d components</item>
+    </plurals>
+    <plurals name="apps_operation_components_disable_title">
+        <item quantity="one">Disable component</item>
+        <item quantity="other">Disable %d components</item>
+    </plurals>
+    <plurals name="apps_operation_targets_description">
+        <item quantity="one">%d app</item>
+        <item quantity="other">%d apps</item>
+    </plurals>
+    <string name="apps_operation_enable_summary">%1$s enabled</string>
+    <string name="apps_operation_disable_summary">%1$s disabled</string>
+    <string name="apps_operation_force_stop_summary">%1$s stopped</string>
+    <string name="apps_operation_uninstall_summary">%1$s uninstalled</string>
+    <string name="apps_operation_clear_data_summary">Data of %1$s cleared</string>
+    <plurals name="apps_operation_components_enable_summary">
+        <item quantity="one">%1$d component enabled</item>
+        <item quantity="other">%1$d components enabled</item>
+    </plurals>
+    <plurals name="apps_operation_components_disable_summary">
+        <item quantity="one">%1$d component disabled</item>
+        <item quantity="other">%1$d components disabled</item>
+    </plurals>
+    <string name="apps_operation_single_failed_summary">Could not complete for %1$s</string>
+    <string name="apps_operation_single_declined_summary">Removal of %1$s declined</string>
+    <string name="apps_operation_batch_summary">%1$d of %2$d done</string>
+    <!-- Quoted so the leading separator survives the resource parser -->
+    <string name="apps_operation_batch_summary_failed">" · %1$d failed"</string>
+    <string name="apps_operation_batch_summary_declined">" · %1$d declined"</string>
 
     <!-- Generic navigation -->
     <string name="appdetails_back_generic_action">Back</string>

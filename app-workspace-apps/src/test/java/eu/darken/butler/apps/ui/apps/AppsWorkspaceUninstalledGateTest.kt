@@ -13,6 +13,8 @@ import eu.darken.butler.common.user.UserProfile2
 import eu.darken.butler.workspace.core.Workspace
 import eu.darken.butler.workspace.core.WorkspaceProvider
 import eu.darken.butler.workspace.core.WorkspaceRemote
+import eu.darken.butler.workspace.core.operations.OperationFocusRequest
+import eu.darken.butler.workspace.ui.operations.OperationsDisplayState
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.every
@@ -82,6 +84,13 @@ class AppsWorkspaceUninstalledGateTest : BaseTest() {
             appsSettings = mockk(relaxed = true),
             appSizeCache = mockk(relaxed = true),
             tabViewStore = mockk(relaxed = true),
+            chromeFactory = mockk {
+                every { create(any(), any()) } returns mockk(relaxed = true) {
+                    every { operations } returns flowOf(OperationsDisplayState())
+                    every { pendingConflicts } returns flowOf(emptyMap())
+                }
+            },
+            operationFocusRequest = OperationFocusRequest(),
         ).also { vm = it }
     }
 

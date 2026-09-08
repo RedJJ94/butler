@@ -3,6 +3,7 @@ package eu.darken.butler.apps.ui.details
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.PreviewWrapper as ComposePreviewWrapper
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import eu.darken.butler.apps.core.details.AppDetailsWorkspaceViewModel
@@ -18,9 +19,18 @@ import eu.darken.butler.common.compose.ButlerPreviewWrapper
 import eu.darken.butler.common.compose.Preview2
 import eu.darken.butler.common.compose.PreviewWrapper
 import eu.darken.butler.common.error.ErrorEventHandler
+import eu.darken.butler.common.issue.Issue
+import eu.darken.butler.common.openPrivacyPolicy
 import eu.darken.butler.workspace.core.Workspace
+import eu.darken.butler.workspace.core.operations.Operation
+import eu.darken.butler.workspace.ui.error.ErrorShareConsentDialog
 import eu.darken.butler.workspace.ui.insets.paneInsets
+import eu.darken.butler.workspace.ui.issues.IssuesBottomSheet
 import eu.darken.butler.workspace.ui.manager.WorkspaceDesign
+import eu.darken.butler.workspace.ui.operations.OperationsDisplayState
+import eu.darken.butler.workspace.ui.operations.bar.OperationsBarAction
+import eu.darken.butler.workspace.ui.operations.details.OperationDialogHost
+import eu.darken.butler.workspace.ui.operations.details.OperationDialogState
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flowOf
@@ -41,12 +51,21 @@ fun AppDetailsWorkspaceOverlaysHost(
         creationCallback = { factory: AppDetailsWorkspaceViewModel.Factory -> factory.create(id = id) }
     ),
 ) {
+    val operationsState by vm.operationsUi.operations.collectAsState()
+    val operationDialogState by vm.operationsUi.dialogState.collectAsState()
+    val issue by vm.operationsUi.issue.collectAsState()
+    val pendingErrorShare by vm.pendingErrorShare.collectAsState()
+
     AppDetailsWorkspaceOverlays(
         design = design,
         selectedSource = vm.selectedComponent,
         toggleStateSource = vm.componentToggleState,
         confirmSource = vm.componentConfirm,
         appConfirmSource = vm.appConfirm,
+        operationsState = operationsState,
+        operationDialogState = operationDialogState,
+        issue = issue,
+        showErrorShareConsent = pendingErrorShare != null,
         onDismiss = vm::onComponentSheetDismissed,
         onLaunch = { vm.onLaunchComponent(packageName = it.packageName, className = it.className) },
         onSetEnabled = { entry, enabled -> vm.onSetComponentEnabled(entry, enabled) },
@@ -55,6 +74,13 @@ fun AppDetailsWorkspaceOverlaysHost(
         onConfirmDismiss = vm::onComponentConfirmDismiss,
         onAppConfirm = vm::onAppConfirm,
         onAppConfirmDismiss = vm::onAppConfirmDismiss,
+        onDismissOperationDialog = { vm.operationsUi.dismissDialog() },
+        onShareOperationError = { vm.operationsUi.shareError(it) },
+        onHandleIssue = { vm.operationsUi.onBarAction(OperationsBarAction.ShowConflict(it)) },
+        onShowInHistory = { vm.operationsUi.showInHistory(it) },
+        onDismissIssue = { vm.operationsUi.dismissIssue() },
+        onConfirmErrorShare = { vm.confirmErrorShare() },
+        onDismissErrorShare = { vm.dismissErrorShare() },
     )
 
     // Last on purpose: layers stack in composition order, so an error raised while one of this
@@ -69,6 +95,10 @@ fun AppDetailsWorkspaceOverlays(
     toggleStateSource: Flow<ComponentToggleState> = flowOf(ComponentToggleState.UNSUPPORTED),
     confirmSource: Flow<ComponentsConfirmRequest?> = flowOf(null),
     appConfirmSource: Flow<AppDetailsConfirmRequest?> = flowOf(null),
+    operationsState: OperationsDisplayState = OperationsDisplayState(),
+    operationDialogState: OperationDialogState = OperationDialogState.None,
+    issue: Issue? = null,
+    showErrorShareConsent: Boolean = false,
     onDismiss: () -> Unit = {},
     onLaunch: (ComponentEntry) -> Unit = {},
     onSetEnabled: (ComponentEntry, Boolean) -> Unit = { _, _ -> },
@@ -77,6 +107,13 @@ fun AppDetailsWorkspaceOverlays(
     onConfirmDismiss: () -> Unit = {},
     onAppConfirm: (AppDetailsConfirmRequest) -> Unit = {},
     onAppConfirmDismiss: () -> Unit = {},
+    onDismissOperationDialog: () -> Unit = {},
+    onShareOperationError: (Operation.Id) -> Unit = {},
+    onHandleIssue: (Operation.Id) -> Unit = {},
+    onShowInHistory: (Operation.Id) -> Unit = {},
+    onDismissIssue: () -> Unit = {},
+    onConfirmErrorShare: () -> Unit = {},
+    onDismissErrorShare: () -> Unit = {},
 ) {
     // The real sources are eagerly shared StateFlows, so a remount reads the current values with no
     // null first frame — which would briefly unmount the sheet's layer.
@@ -125,6 +162,41 @@ fun AppDetailsWorkspaceOverlays(
             request = request,
             onConfirm = { onAppConfirm(request) },
             onDismiss = onAppConfirmDismiss,
+        )
+    }
+
+    OperationDialogHost(
+        dialogState = operationDialogState,
+        operations = operationsState.operations,
+        onDismissDialog = onDismissOperationDialog,
+        // Nothing a package action does can be interrupted, so the sheet offers no cancel.
+        onCancelOperation = null,
+        onShareError = onShareOperationError,
+        onHandleIssue = onHandleIssue,
+        onShowInHistory = onShowInHistory,
+        historyEnabled = operationsState.historyEnabled,
+        topInset = paneInsets.top,
+        bottomInset = paneInsets.bottom,
+    )
+
+    issue?.let {
+        IssuesBottomSheet(
+            issue = it,
+            // The answer belongs to Android's own dialog; the operation leaves Waiting once that
+            // dialog reports.
+            onResolution = {},
+            onDismiss = onDismissIssue,
+            topInset = paneInsets.top,
+            bottomInset = paneInsets.bottom,
+        )
+    }
+
+    if (showErrorShareConsent) {
+        val context = LocalContext.current
+        ErrorShareConsentDialog(
+            onConfirm = onConfirmErrorShare,
+            onDismiss = onDismissErrorShare,
+            onPrivacyPolicy = { openPrivacyPolicy(context) },
         )
     }
 }

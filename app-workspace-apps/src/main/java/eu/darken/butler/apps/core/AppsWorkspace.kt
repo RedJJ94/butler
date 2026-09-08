@@ -11,6 +11,8 @@ import dagger.multibindings.IntoMap
 import eu.darken.butler.apps.R
 import eu.darken.butler.apps.core.engine.AppItem
 import eu.darken.butler.apps.core.engine.AppsEngine
+import eu.darken.butler.apps.core.operations.PackageActionOperation
+import eu.darken.butler.apps.core.operations.PackageCommand
 import eu.darken.butler.common.adb.AdbManager
 import eu.darken.butler.common.ca.toCaString
 import eu.darken.butler.common.coroutine.DispatcherProvider
@@ -21,8 +23,6 @@ import eu.darken.butler.common.debug.logging.asLog
 import eu.darken.butler.common.debug.logging.log
 import eu.darken.butler.common.debug.logging.logTag
 import eu.darken.butler.common.pkgs.features.InstallId
-import eu.darken.butler.common.pkgs.pkgops.PkgOps
-import eu.darken.butler.common.pkgs.pkgops.PkgOpsException
 import eu.darken.butler.common.root.RootManager
 import eu.darken.butler.workspace.contracts.apps.AppsArguments
 import eu.darken.butler.workspace.contracts.apps.AppsViewStyle
@@ -32,19 +32,28 @@ import eu.darken.butler.workspace.core.Workspace
 import eu.darken.butler.workspace.core.WorkspaceFactory
 import eu.darken.butler.workspace.core.WorkspaceTypeKey
 import eu.darken.butler.workspace.core.initialInfo
+import eu.darken.butler.workspace.core.operations.ManagedOperation
+import eu.darken.butler.workspace.core.operations.Operation
+import eu.darken.butler.workspace.core.operations.OperationsManager
+import eu.darken.butler.workspace.core.operations.operationsForWorkspace
+import eu.darken.butler.workspace.core.operations.withOnlyStateChanges
 import eu.darken.butler.workspace.core.stateInWorkspace
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.KSerializer
@@ -57,10 +66,10 @@ class AppsWorkspace @AssistedInject constructor(
     appsEngineFactory: AppsEngine.Factory,
     private val appsSettings: AppsSettings,
     private val tabViewStore: AppsTabViewStore,
-    private val appSizeCache: AppSizeCache,
-    private val pkgOps: PkgOps,
     private val rootManager: RootManager,
     private val adbManager: AdbManager,
+    private val operationsManager: OperationsManager,
+    private val operationFactory: PackageActionOperation.Factory,
 ) : Workspace<AppsArguments> {
 
     private val tag = logTag("Apps", "Workspace", id.shortTag)
@@ -136,25 +145,60 @@ class AppsWorkspace @AssistedInject constructor(
         }
 
     /**
-     * Number of package operations (enable/disable/uninstall/clear) currently running. Package
-     * operations don't go through OperationsManager, so this is the only signal that keeps a pause
-     * from releasing the workspace mid-operation.
+     * What this workspace's own operations add up to, recomputed on every state change.
+     *
+     * A snapshot rather than the operation list itself: [withOnlyStateChanges] re-emits the SAME
+     * list instance when an operation changes state, so a StateFlow of that list would conflate
+     * every transition away and freeze the counts.
      */
-    private val pkgOpsInFlight = MutableStateFlow(0)
+    private data class OwnOps(
+        val unfinished: Int,
+        val attention: Int,
+    )
 
-    private suspend fun <T> trackPkgOp(block: suspend () -> T): T {
-        pkgOpsInFlight.update { it + 1 }
-        try {
-            return block()
-        } finally {
-            pkgOpsInFlight.update { it - 1 }
+    private val ownOps: StateFlow<OwnOps> = operationsManager.operationsForWorkspace(id)
+        .withOnlyStateChanges()
+        .map { operations ->
+            var unfinished = 0
+            var attention = 0
+            operations.forEach { operation ->
+                when (val opState = operation.state.value) {
+                    is Operation.State.Queued, is Operation.State.Active -> unfinished++
+
+                    is Operation.State.Waiting -> {
+                        unfinished++
+                        attention++
+                    }
+
+                    is Operation.State.Completed -> {
+                        if (opState.error != null && opState.error !is CancellationException) attention++
+                    }
+                }
+            }
+            OwnOps(unfinished = unfinished, attention = attention)
         }
+        .stateIn(scope, SharingStarted.Eagerly, OwnOps(0, 0))
+
+    /**
+     * No single-flight barrier: a batch is one operation, and the action bar is driven by the
+     * selection, which this clears right after submitting.
+     */
+    suspend fun submit(command: PackageCommand): ManagedOperation {
+        log(tag) { "submit($command)" }
+        val managed = operationsManager.submitManaged(
+            operationFactory.create(
+                actionOrigin = Operation.Metadata.Origin.Apps(id),
+                command = command,
+            )
+        )
+        appsEngine.clearSelection()
+        return managed
     }
 
     override val info: StateFlow<Workspace.Info> = combine(
         _state,
-        pkgOpsInFlight,
-    ) { state, opsInFlight ->
+        ownOps,
+    ) { state, ownOps ->
         Workspace.Info(
             id = id,
             type = type,
@@ -168,9 +212,9 @@ class AppsWorkspace @AssistedInject constructor(
                 is State.Error -> Workspace.LifecycleState.Error(state.error)
                 is State.Ready -> Workspace.LifecycleState.Ready
             },
-            operationCount = 0,
-            attentionCount = 0,
-            isPausable = opsInFlight == 0,
+            operationCount = ownOps.unfinished,
+            attentionCount = ownOps.attention,
+            isPausable = ownOps.unfinished == 0,
             callerWorkspaceId = null,
         )
     }.stateInWorkspace(
@@ -287,99 +331,6 @@ class AppsWorkspace @AssistedInject constructor(
 
     suspend fun refresh() {
         appsEngine.refresh(showIndicator = true)
-    }
-
-    suspend fun enableApps(apps: List<AppItem>) = trackPkgOp {
-        log(tag) { "Enabling ${apps.size} apps" }
-        val failures = mutableListOf<Pair<AppItem, Exception>>()
-        try {
-            apps.forEach { app ->
-                try {
-                    pkgOps.changePackageState(app.id, enabled = true)
-                } catch (e: Exception) {
-                    log(tag, WARN) { "Failed to enable ${app.packageName}: $e" }
-                    failures.add(app to e)
-                }
-            }
-            if (failures.isNotEmpty()) {
-                throw PkgOpsException("Failed to enable ${failures.size}/${apps.size} apps", failures.first().second)
-            }
-        } finally {
-            appsEngine.refresh()
-            appsEngine.clearSelection()
-        }
-    }
-
-    suspend fun disableApps(apps: List<AppItem>) = trackPkgOp {
-        log(tag) { "Disabling ${apps.size} apps" }
-        val failures = mutableListOf<Pair<AppItem, Exception>>()
-        try {
-            apps.forEach { app ->
-                try {
-                    pkgOps.changePackageState(app.id, enabled = false)
-                } catch (e: Exception) {
-                    log(tag, WARN) { "Failed to disable ${app.packageName}: $e" }
-                    failures.add(app to e)
-                }
-            }
-            if (failures.isNotEmpty()) {
-                throw PkgOpsException("Failed to disable ${failures.size}/${apps.size} apps", failures.first().second)
-            }
-        } finally {
-            appsEngine.refresh()
-            appsEngine.clearSelection()
-        }
-    }
-
-    suspend fun uninstallApps(apps: List<AppItem>) = trackPkgOp {
-        log(tag) { "Uninstalling ${apps.size} apps" }
-        val failures = mutableListOf<Pair<AppItem, Exception>>()
-        try {
-            apps.forEach { app ->
-                try {
-                    pkgOps.uninstall(app.pkg.installId)
-                } catch (e: Exception) {
-                    log(tag, WARN) { "Failed to uninstall ${app.packageName}: $e" }
-                    failures.add(app to e)
-                }
-            }
-            if (failures.isNotEmpty()) {
-                // The first failure's text is appended because only the top-level message is
-                // rendered - a bare summary would not say why anything failed.
-                throw PkgOpsException(
-                    "Failed to uninstall ${failures.size}/${apps.size} apps: ${failures.first().second.message}",
-                    failures.first().second,
-                )
-            }
-        } finally {
-            appsEngine.refresh()
-            appsEngine.clearSelection()
-        }
-    }
-
-    suspend fun clearDataApps(apps: List<AppItem>) = trackPkgOp {
-        log(tag) { "Clearing data for ${apps.size} apps" }
-        val failures = mutableListOf<Pair<AppItem, Exception>>()
-        try {
-            apps.forEach { app ->
-                try {
-                    pkgOps.clearData(app.pkg.installId)
-                } catch (e: Exception) {
-                    log(tag, WARN) { "Failed to clear data for ${app.packageName}: $e" }
-                    failures.add(app to e)
-                }
-            }
-            if (failures.isNotEmpty()) {
-                throw PkgOpsException(
-                    "Failed to clear data for ${failures.size}/${apps.size} apps: ${failures.first().second.message}",
-                    failures.first().second,
-                )
-            }
-        } finally {
-            appSizeCache.invalidate(apps.map { it.pkg.installId })
-            appsEngine.refresh()
-            appsEngine.clearSelection()
-        }
     }
 
     override suspend fun release() {

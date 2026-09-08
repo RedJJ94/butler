@@ -12,8 +12,9 @@ import eu.darken.butler.common.room.InstantConverter
         OperationHistoryEntity::class,
         OperationHistoryPathEntity::class,
         OperationHistoryScopeEntity::class,
+        OperationHistoryPackageEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 @TypeConverters(InstantConverter::class)
@@ -54,6 +55,31 @@ abstract class OperationHistoryDatabase : RoomDatabase() {
             }
         }
 
-        val MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2)
+        /**
+         * Adds the per-app outcome table for package operations. Purely additive: existing rows are
+         * kept, older entries simply have no package rows to show.
+         */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `operation_history_packages` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`operationHistoryId` TEXT NOT NULL, " +
+                        "`label` TEXT NOT NULL, " +
+                        "`packageName` TEXT NOT NULL, " +
+                        "`status` TEXT NOT NULL, " +
+                        "`errorMessage` TEXT, " +
+                        "`sortIndex` INTEGER NOT NULL, " +
+                        "FOREIGN KEY(`operationHistoryId`) REFERENCES `operation_history`(`id`) " +
+                        "ON UPDATE NO ACTION ON DELETE CASCADE )"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_operation_history_packages_operationHistoryId` " +
+                        "ON `operation_history_packages` (`operationHistoryId`)"
+                )
+            }
+        }
+
+        val MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
     }
 }

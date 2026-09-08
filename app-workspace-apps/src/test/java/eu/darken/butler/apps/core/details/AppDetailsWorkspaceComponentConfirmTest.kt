@@ -5,12 +5,19 @@ import eu.darken.butler.apps.core.details.components.ComponentEntry
 import eu.darken.butler.apps.core.details.components.ComponentKind
 import eu.darken.butler.apps.core.details.components.ComponentToggleState
 import eu.darken.butler.apps.core.details.components.ComponentsData
+import eu.darken.butler.apps.core.operations.PackageCommand
 import eu.darken.butler.apps.ui.details.components.ComponentsActionBarItem
+import eu.darken.butler.common.ca.toCaString
+import eu.darken.butler.common.pkgs.Pkg
+import eu.darken.butler.common.pkgs.features.InstallId
 import eu.darken.butler.common.pkgs.features.Installed
+import eu.darken.butler.common.user.UserHandle2
 import eu.darken.butler.workspace.contracts.apps.DetailTab
 import eu.darken.butler.workspace.core.Workspace
 import eu.darken.butler.workspace.core.WorkspaceProvider
 import eu.darken.butler.workspace.core.WorkspaceRemote
+import eu.darken.butler.workspace.core.operations.OperationFocusRequest
+import eu.darken.butler.workspace.ui.operations.OperationsDisplayState
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -46,6 +53,9 @@ class AppDetailsWorkspaceComponentConfirmTest : BaseTest() {
         install = mockk<Installed> {
             every { packageName } returns "com.example.app"
             every { versionCode } returns 1L
+            // The command names its target by install and label.
+            every { installId } returns InstallId(Pkg.Id("com.example.app"), UserHandle2(0))
+            every { label } returns "Example App".toCaString()
         },
     )
 
@@ -66,6 +76,9 @@ class AppDetailsWorkspaceComponentConfirmTest : BaseTest() {
                     componentToggleState = ComponentToggleState.AVAILABLE,
                 )
             )
+            // A relaxed mock answers a nullable object return with a chained mock, not null, and a
+            // chained ManagedOperation never reaches a Completed state for the refresh to wait on.
+            coEvery { submit(any()) } returns null
         }
 
         val id = Workspace.Id()
@@ -75,8 +88,14 @@ class AppDetailsWorkspaceComponentConfirmTest : BaseTest() {
             dispatchers = TestDispatcherProvider(),
             workspaceProvider = mockk<WorkspaceProvider> { every { retrieve(id) } returns flowOf(workspace) },
             workspaceRemote = mockk<WorkspaceRemote>(relaxed = true),
-            appSizeCache = mockk(relaxed = true),
             componentsLoader = loader,
+            chromeFactory = mockk {
+                every { create(any(), any()) } returns mockk(relaxed = true) {
+                    every { operations } returns flowOf(OperationsDisplayState())
+                    every { pendingConflicts } returns flowOf(emptyMap())
+                }
+            },
+            operationFocusRequest = OperationFocusRequest(),
         )
     }
 
@@ -104,7 +123,7 @@ class AppDetailsWorkspaceComponentConfirmTest : BaseTest() {
         vm.onComponentSelectionChanged(setOf(service.key))
         vm.onComponentConfirm(stale)
 
-        coVerify(exactly = 0) { workspace.setComponentsEnabled(any(), any()) }
+        coVerify(exactly = 0) { workspace.submit(any()) }
     }
 
     @Test
@@ -115,7 +134,11 @@ class AppDetailsWorkspaceComponentConfirmTest : BaseTest() {
 
         vm.onComponentConfirm(vm.componentConfirm.value!!)
 
-        coVerify(exactly = 1) { workspace.setComponentsEnabled(listOf(activity), false) }
+        coVerify(exactly = 1) {
+            workspace.submit(
+                match { it is PackageCommand.SetComponents && it.entries == listOf(activity) && !it.enabled }
+            )
+        }
         vm.componentConfirm.value shouldBe null
     }
 }

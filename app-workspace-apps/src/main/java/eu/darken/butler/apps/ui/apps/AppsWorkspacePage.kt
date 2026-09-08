@@ -7,8 +7,10 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.PreviewWrapper as ComposePreviewWrapper
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -30,6 +32,8 @@ import eu.darken.butler.workspace.ui.floatingbar.FloatingBarStack
 import eu.darken.butler.workspace.ui.insets.rememberPaneFloatingBarStackState
 import eu.darken.butler.workspace.ui.manager.WorkspaceDesign
 import eu.darken.butler.workspace.ui.modal.WorkspaceBackHandler
+import eu.darken.butler.workspace.ui.operations.OperationsDisplayState
+import eu.darken.butler.workspace.ui.operations.bar.WorkspaceOperationsFloatingBar
 import eu.darken.butler.workspace.ui.scroll.rememberWorkspaceLazyGridState
 import eu.darken.butler.workspace.ui.scroll.rememberWorkspaceLazyListState
 import kotlinx.coroutines.flow.Flow
@@ -41,6 +45,7 @@ fun AppsWorkspacePage(
     workspaceId: Workspace.Id,
     design: WorkspaceDesign,
     stateSource: Flow<AppsWorkspaceViewModel.State>,
+    operationsState: OperationsDisplayState = OperationsDisplayState(),
     onPageAction: (AppsPageAction) -> Unit = {},
 ) {
     // StateFlow check: use current value as initial for single-frame renderers (screenshot tests, previews)
@@ -148,6 +153,12 @@ fun AppsWorkspacePage(
             position = BarPosition.BOTTOM,
             modifier = Modifier.align(Alignment.BottomCenter),
             bars = {
+                WorkspaceOperationsFloatingBar(
+                    key = AppsBarKeys.OPERATIONS,
+                    operations = operationsState.operations,
+                    onAction = { onPageAction(AppsPageAction.OperationBar(it)) },
+                )
+
                 FloatingBar(
                     key = AppsBarKeys.ACTIONS,
                     visible = hasActions,
@@ -181,10 +192,18 @@ fun AppsWorkspacePageHost(
 ) {
     NavigationEventHandler(vm)
 
+    val context = LocalContext.current
+    LaunchedEffect(vm) {
+        vm.shareIntentEvent.collect { intent -> context.startActivity(intent) }
+    }
+
+    val operationsState by vm.operationsUi.operations.collectAsState()
+
     AppsWorkspacePage(
         workspaceId = id,
         design = design,
         stateSource = vm.state,
+        operationsState = operationsState,
         onPageAction = vm::onPageAction,
     )
 }

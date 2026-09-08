@@ -23,20 +23,25 @@ interface OperationHistoryDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertScopePaths(paths: List<OperationHistoryScopeEntity>)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPackages(packages: List<OperationHistoryPackageEntity>)
+
     /**
-     * Atomic write: insert one operation row + all its path and scope rows + enforce the retention
-     * cap. If [maxItems] is exceeded, deletes the oldest by `completedAt`.
+     * Atomic write: insert one operation row + all its path, scope and package rows + enforce the
+     * retention cap. If [maxItems] is exceeded, deletes the oldest by `completedAt`.
      */
     @Transaction
     suspend fun insertWithPathsAndTrim(
         entry: OperationHistoryEntity,
         paths: List<OperationHistoryPathEntity>,
         scopePaths: List<OperationHistoryScopeEntity>,
+        packages: List<OperationHistoryPackageEntity>,
         maxItems: Int,
     ) {
         insertEntry(entry)
         if (paths.isNotEmpty()) insertPaths(paths)
         if (scopePaths.isNotEmpty()) insertScopePaths(scopePaths)
+        if (packages.isNotEmpty()) insertPackages(packages)
         val count = getCount()
         if (count > maxItems) deleteOldest(count - maxItems)
     }

@@ -78,6 +78,8 @@ class AppDetailsWorkspaceLabelCaptureTest {
             rootManager = mockk(relaxed = true),
             adbManager = mockk(relaxed = true),
             workspaceRemote = mockk(relaxed = true),
+            operationsManager = mockk(relaxed = true),
+            operationFactory = mockk(),
         )
     }
 

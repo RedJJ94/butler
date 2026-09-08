@@ -207,6 +207,8 @@ class AppSizeResolutionE2ETest : BaseTest() {
             every { useAdb } returns flowOf(false)
         },
         workspaceRemote = mockk(relaxed = true),
+        operationsManager = mockk(relaxed = true),
+        operationFactory = mockk(),
     )
 
     @Test

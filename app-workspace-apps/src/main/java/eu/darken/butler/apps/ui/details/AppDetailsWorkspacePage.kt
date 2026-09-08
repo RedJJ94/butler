@@ -14,6 +14,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -25,6 +26,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.PreviewWrapper as ComposePreviewWrapper
@@ -51,6 +53,7 @@ import eu.darken.butler.common.ca.toCaString
 import eu.darken.butler.common.compose.ButlerPreviewWrapper
 import eu.darken.butler.common.compose.Preview2
 import eu.darken.butler.common.compose.PreviewWrapper
+import eu.darken.butler.common.compose.asComposable
 import eu.darken.butler.common.compose.dragselect.listDragSelect
 import eu.darken.butler.common.files.APath
 import eu.darken.butler.common.files.LocalPath
@@ -69,6 +72,9 @@ import eu.darken.butler.workspace.ui.floatingbar.rememberFloatingBarContentPaddi
 import eu.darken.butler.workspace.ui.insets.rememberPaneFloatingBarStackState
 import eu.darken.butler.workspace.ui.manager.WorkspaceDesign
 import eu.darken.butler.workspace.ui.modal.WorkspaceBackHandler
+import eu.darken.butler.workspace.ui.operations.OperationsDisplayState
+import eu.darken.butler.workspace.ui.operations.bar.OperationsBarAction
+import eu.darken.butler.workspace.ui.operations.bar.WorkspaceOperationsFloatingBar
 import eu.darken.butler.workspace.ui.scroll.rememberWorkspaceLazyListState
 import kotlinx.coroutines.flow.drop
 import java.io.IOException
@@ -93,6 +99,7 @@ sealed interface AppDetailsPageAction {
     data class ClearData(val app: AppInfo) : AppDetailsPageAction
     data object OpenSizeSetup : AppDetailsPageAction
     data object RetryAppInfo : AppDetailsPageAction
+    data class OperationBar(val action: OperationsBarAction) : AppDetailsPageAction
 }
 
 @Composable
@@ -108,10 +115,16 @@ fun AppDetailsWorkspacePageHost(
 ) {
     NavigationEventHandler(vm)
 
+    val context = LocalContext.current
+    LaunchedEffect(vm) {
+        vm.shareIntentEvent.collect { intent -> context.startActivity(intent) }
+    }
+
     val state by vm.state.collectAsState(initial = null)
     val componentsState by vm.componentsState.collectAsState(initial = ComponentsUiState.Loading)
     val selectedComponentKeys by vm.selectedComponentKeys.collectAsState()
     val componentActions by vm.componentActions.collectAsState()
+    val operationsState by vm.operationsUi.operations.collectAsState()
 
     state?.let { currentState ->
         AppDetailsWorkspacePage(
@@ -120,6 +133,7 @@ fun AppDetailsWorkspacePageHost(
             componentsState = componentsState,
             selectedComponentKeys = selectedComponentKeys,
             componentActions = componentActions,
+            operationsState = operationsState,
             workspaceId = id,
             onPageAction = { action ->
                 when (action) {
@@ -142,6 +156,7 @@ fun AppDetailsWorkspacePageHost(
                     is AppDetailsPageAction.ClearData -> vm.onClearData(action.app)
                     is AppDetailsPageAction.OpenSizeSetup -> vm.onOpenSizePermissionSetup()
                     is AppDetailsPageAction.RetryAppInfo -> vm.onRetryAppInfo()
+                    is AppDetailsPageAction.OperationBar -> vm.operationsUi.onBarAction(action.action)
                 }
             },
         )
@@ -156,11 +171,14 @@ fun AppDetailsWorkspacePage(
     componentsState: ComponentsUiState = ComponentsUiState.Loading,
     selectedComponentKeys: Set<String> = emptySet(),
     componentActions: List<ComponentsActionBarItem> = emptyList(),
+    operationsState: OperationsDisplayState = OperationsDisplayState(),
     workspaceId: Workspace.Id? = null,
     onPageAction: (AppDetailsPageAction) -> Unit = {},
 ) {
     val appInfo = state.app
     val isModal = state.callerWorkspaceId != null
+    // The toolbar reads its title off the app, which a removed package no longer supplies.
+    val fallbackTitle = state.title.asComposable()
 
     val showComponents = state.selectedTab == DetailTab.COMPONENTS
     val showPackageInfo = state.selectedTab == DetailTab.PACKAGE_INFO
@@ -295,6 +313,14 @@ fun AppDetailsWorkspacePage(
                 }
             }
 
+            // On every tab: the page stays open after an uninstall so its receipt stays reachable,
+            // and there is nothing else left to render.
+            if (state.isGone) {
+                item {
+                    AppGoneCard(onClose = { onPageAction(AppDetailsPageAction.Close) })
+                }
+            }
+
             if (appInfo != null) {
                 when (state.selectedTab) {
                     DetailTab.COMPONENTS -> appComponentsItems(
@@ -342,6 +368,7 @@ fun AppDetailsWorkspacePage(
                             app = state.app,
                             design = design,
                             collapsedFraction = collapsedFraction,
+                            fallbackTitle = fallbackTitle,
                             subtitle = stringResource(R.string.appdetails_packageinfo_title),
                             onBackClick = { onPageAction(AppDetailsPageAction.NavigateToTab(DetailTab.OVERVIEW)) },
                             backContentDescription = stringResource(R.string.appdetails_back_generic_action),
@@ -352,6 +379,7 @@ fun AppDetailsWorkspacePage(
                             app = state.app,
                             design = design,
                             collapsedFraction = collapsedFraction,
+                            fallbackTitle = fallbackTitle,
                             subtitle = stringResource(R.string.apps_details_section_components),
                             onBackClick = { onPageAction(AppDetailsPageAction.NavigateToTab(DetailTab.OVERVIEW)) },
                             backContentDescription = stringResource(R.string.appdetails_back_generic_action),
@@ -372,6 +400,7 @@ fun AppDetailsWorkspacePage(
                             app = state.app,
                             design = design,
                             collapsedFraction = collapsedFraction,
+                            fallbackTitle = fallbackTitle,
                             onBackClick = if (isModal) {
                                 { onPageAction(AppDetailsPageAction.Close) }
                             } else null,
@@ -404,6 +433,12 @@ fun AppDetailsWorkspacePage(
             position = BarPosition.BOTTOM,
             modifier = Modifier.align(Alignment.BottomCenter),
             bars = {
+                WorkspaceOperationsFloatingBar(
+                    key = AppDetailsBarKeys.OPERATIONS,
+                    operations = operationsState.operations,
+                    onAction = { onPageAction(AppDetailsPageAction.OperationBar(it)) },
+                )
+
                 FloatingBar(
                     key = AppDetailsBarKeys.ACTIONS,
                     visible = showComponents && componentActions.any { it.isVisible },
@@ -507,6 +542,52 @@ private fun LazyListScope.overviewItems(
             )
         }
     }
+}
+
+/** End state of a page whose package is no longer there at all, e.g. after an uninstall. */
+@Composable
+private fun AppGoneCard(
+    modifier: Modifier = Modifier,
+    onClose: () -> Unit = {},
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.apps_details_gone_title),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                text = stringResource(R.string.apps_details_gone_message),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            TextButton(
+                modifier = Modifier.align(Alignment.End),
+                onClick = onClose,
+            ) {
+                Text(text = stringResource(R.string.apps_details_gone_close_action))
+            }
+        }
+    }
+}
+
+@Preview2
+@ComposePreviewWrapper(ButlerPreviewWrapper::class)
+@Composable
+private fun AppGoneCardPreview() {
+    AppGoneCard()
 }
 
 /** The package is still listed and its metadata still valid, only the install is gone. */
@@ -667,6 +748,21 @@ private fun AppDetailsWorkspacePagePreview() {
                 ),
             ),
         ),
+        onPageAction = {},
+    )
+}
+
+@Preview2
+@ComposePreviewWrapper(ButlerPreviewWrapper::class)
+@Composable
+private fun AppDetailsWorkspacePageGonePreview() {
+    AppDetailsWorkspacePage(
+        design = WorkspaceDesign(),
+        state = AppDetailsWorkspace.State(
+            appState = AppInfoState.Gone,
+            title = "PP Test App".toCaString(),
+        ),
+        workspaceId = Workspace.Id(),
         onPageAction = {},
     )
 }

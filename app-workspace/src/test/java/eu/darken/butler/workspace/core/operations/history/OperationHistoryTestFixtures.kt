@@ -12,6 +12,7 @@ import eu.darken.butler.workspace.core.operations.OperationsManager
 import eu.darken.butler.workspace.core.operations.history.db.OperationHistoryDao
 import eu.darken.butler.workspace.core.operations.history.db.OperationHistoryDatabase
 import eu.darken.butler.workspace.core.operations.history.db.OperationHistoryEntity
+import eu.darken.butler.workspace.core.operations.history.db.OperationHistoryPackageEntity
 import eu.darken.butler.workspace.core.operations.history.db.OperationHistoryPathEntity
 import eu.darken.butler.workspace.core.operations.history.db.OperationHistoryScopeEntity
 import io.mockk.every
@@ -101,9 +102,10 @@ internal class SignalingHistoryDao(
         entry: OperationHistoryEntity,
         paths: List<OperationHistoryPathEntity>,
         scopePaths: List<OperationHistoryScopeEntity>,
+        packages: List<OperationHistoryPackageEntity>,
         maxItems: Int,
     ) {
-        delegate.insertWithPathsAndTrim(entry, paths, scopePaths, maxItems)
+        delegate.insertWithPathsAndTrim(entry, paths, scopePaths, packages, maxItems)
         inserts.emit(entry.id)
     }
 }

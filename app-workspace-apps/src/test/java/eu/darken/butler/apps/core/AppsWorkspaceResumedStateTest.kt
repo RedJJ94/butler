@@ -74,10 +74,10 @@ class AppsWorkspaceResumedStateTest : BaseTest() {
                 every { defaultViewStyle } returns settingsValue(AppsViewStyle.default())
             },
             tabViewStore = tabViewStore,
-            appSizeCache = mockk(relaxed = true),
-            pkgOps = mockk(relaxed = true),
             rootManager = mockk<RootManager> { every { useRoot } returns flowOf(false) },
             adbManager = mockk<AdbManager> { every { useAdb } returns flowOf(false) },
+            operationsManager = mockk(relaxed = true),
+            operationFactory = mockk(),
         )
     }
 

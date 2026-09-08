@@ -9,6 +9,8 @@ import eu.darken.butler.workspace.contracts.apps.AppsViewStyle
 import eu.darken.butler.workspace.core.Workspace
 import eu.darken.butler.workspace.core.WorkspaceProvider
 import eu.darken.butler.workspace.core.WorkspaceRemote
+import eu.darken.butler.workspace.core.operations.OperationFocusRequest
+import eu.darken.butler.workspace.ui.operations.OperationsDisplayState
 import eu.darken.butler.workspace.ui.restore.WorkspaceViewPrefs
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
@@ -75,6 +77,13 @@ class AppsViewStyleScopesTest : BaseTest() {
         },
         appSizeCache = mockk(relaxed = true),
         tabViewStore = tabViewStore,
+        chromeFactory = mockk {
+            every { create(any(), any()) } returns mockk(relaxed = true) {
+                every { operations } returns flowOf(OperationsDisplayState())
+                every { pendingConflicts } returns flowOf(emptyMap())
+            }
+        },
+        operationFocusRequest = OperationFocusRequest(),
     )
 
     @Test

@@ -17,6 +17,7 @@ import eu.darken.butler.workspace.core.operations.OperationsManager
 import eu.darken.butler.workspace.core.operations.history.db.OperationHistoryDao
 import eu.darken.butler.workspace.core.operations.history.db.OperationHistoryDatabase
 import eu.darken.butler.workspace.core.operations.history.db.OperationHistoryEntity
+import eu.darken.butler.workspace.core.operations.history.db.OperationHistoryPackageEntity
 import eu.darken.butler.workspace.core.operations.history.db.OperationHistoryPathEntity
 import eu.darken.butler.workspace.core.operations.history.db.OperationHistoryScopeEntity
 import eu.darken.butler.workspace.core.operations.history.db.OperationHistoryWithPaths
@@ -115,6 +116,17 @@ class OperationHistoryRepo @Inject constructor(
                 sortIndex = index,
             )
         }
+        val packageOutcomes = (state.report as? Operation.Report.Packages)?.outcomes.orEmpty()
+        val packageEntities = packageOutcomes.mapIndexed { index, outcome ->
+            OperationHistoryPackageEntity(
+                operationHistoryId = rowId,
+                label = outcome.label.get(context),
+                packageName = outcome.packageName,
+                status = outcome.status.name,
+                errorMessage = outcome.error?.let { it.localizedMessage ?: it.javaClass.simpleName },
+                sortIndex = index,
+            )
+        }
 
         val entry = OperationHistoryEntity(
             id = rowId,
@@ -142,6 +154,7 @@ class OperationHistoryRepo @Inject constructor(
             entry = entry,
             paths = pathEntities,
             scopePaths = scopeEntities,
+            packages = packageEntities,
             maxItems = historySettings.maxHistoryItems.value(),
         )
 
@@ -391,6 +404,14 @@ class OperationHistoryRepo @Inject constructor(
                 path = p.path,
                 previousPath = p.previousPath,
                 change = Operation.Report.Paths.PathChange.Change.valueOf(p.change),
+            )
+        },
+        packages = packages.sortedBy { it.sortIndex }.map { p ->
+            HistoryEntry.PackageOutcome(
+                label = p.label,
+                packageName = p.packageName,
+                status = Operation.Report.Packages.Outcome.Status.valueOf(p.status),
+                errorMessage = p.errorMessage,
             )
         },
     )
