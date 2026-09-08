@@ -44,26 +44,26 @@ class ExplorerItemSorterSizeTest : BaseTest() {
     private fun List<ExplorerItem>.names() = map { (it as ExplorerItem.Lookup).lookup.name }
 
     private val items = listOf(
-        directory("big", computedSize = 300L),
-        directory("small", computedSize = 100L),
+        directory("big", computedSize = 117L * 1024 * 1024),
+        directory("small", computedSize = 5L * 1024 * 1024),
         directory("zeta"),
         directory("alpha"),
-        file("large.txt", 900L),
-        file("tiny.txt", 1L),
+        file("large.txt", 10L * 1024 * 1024),
+        file("tiny.txt", 1024L),
     )
 
     @Test
-    fun `size sort ranks folders by their calculated size, unknown ones last`() {
+    fun `size sort ranks folders and files in one list, unmeasured folders last`() {
         val sorted = sorter.sortItems(items, SortSettings(mode = SortSettings.Mode.SIZE))
 
-        sorted.names() shouldBe listOf("small", "big", "alpha", "zeta", "tiny.txt", "large.txt")
+        sorted.names() shouldBe listOf("tiny.txt", "small", "large.txt", "big", "alpha", "zeta")
     }
 
     @Test
-    fun `reversing flips the ranked folders but leaves the unknown ones last and name-ordered`() {
+    fun `reversing flips the ranking but leaves the unmeasured folders last and name-ordered`() {
         val sorted = sorter.sortItems(items, SortSettings(mode = SortSettings.Mode.SIZE, reversed = true))
 
-        sorted.names() shouldBe listOf("large.txt", "tiny.txt", "big", "small", "alpha", "zeta")
+        sorted.names() shouldBe listOf("big", "large.txt", "small", "tiny.txt", "alpha", "zeta")
     }
 
     @Test

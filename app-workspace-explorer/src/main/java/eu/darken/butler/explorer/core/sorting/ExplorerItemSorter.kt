@@ -64,11 +64,12 @@ class ExplorerItemSorter @AssistedInject constructor(
         val directories = pathItems.filterIsInstance<ExplorerItem.Directory>()
         val files = pathItems.filterIsInstance<ExplorerItem.File>()
 
-        val sortedDirectories = when (sortSettings.mode) {
-            SortSettings.Mode.SIZE -> sortDirectoriesBySize(context, directories, sortSettings.reversed)
-            else -> applySortMode(context, directories, sortSettings)
-                .let { if (sortSettings.reversed) it.reversed() else it }
+        if (sortSettings.mode == SortSettings.Mode.SIZE) {
+            return peeks + sortBySize(context, directories, files, sortSettings.reversed)
         }
+
+        val sortedDirectories = applySortMode(context, directories, sortSettings)
+            .let { if (sortSettings.reversed) it.reversed() else it }
         val sortedFiles = applySortMode(context, files, sortSettings)
             .let { if (sortSettings.reversed) it.reversed() else it }
 
@@ -80,28 +81,35 @@ class ExplorerItemSorter @AssistedInject constructor(
     }
 
     /**
-     * Ranks folders by the size a "Calculate sizes" run produced for them. Folders without one have
-     * nothing to rank by, so they keep their name order and stay last in both directions.
+     * Ranks folders and files in one list: a folder a "Calculate sizes" run measured carries the
+     * same kind of number a file does, e.g. a 117 MB folder belongs above a 10 MB file and below a
+     * 4 GB one. Folders without a calculated size have nothing to rank by, so they keep their name
+     * order and stay last in both directions.
      */
-    private fun sortDirectoriesBySize(
+    private fun sortBySize(
         context: Context,
         directories: List<ExplorerItem.Directory>,
+        files: List<ExplorerItem.File>,
         reversed: Boolean,
-    ): List<ExplorerItem.Directory> {
-        val byName = Comparator<ExplorerItem.Directory> { a, b ->
+    ): List<ExplorerItem.Path> {
+        val byName = Comparator<ExplorerItem.Path> { a, b ->
             NaturalSortComparator.compare(a.displayName.get(context), b.displayName.get(context))
         }
-        val known = directories
-            .filter { (it as? ExplorerItem.RegularDirectory)?.computedSize != null }
+        val measured = directories.filter { (it as? ExplorerItem.RegularDirectory)?.computedSize != null }
+        val ranked = (measured + files)
             .sortedWith(
-                compareBy<ExplorerItem.Directory> { (it as ExplorerItem.RegularDirectory).computedSize!!.bytes }
-                    .then(byName)
+                compareBy<ExplorerItem.Path> { item ->
+                    when (item) {
+                        is ExplorerItem.Directory -> (item as ExplorerItem.RegularDirectory).computedSize!!.bytes
+                        else -> (item as ExplorerItem.Lookup).lookup.size ?: 0L
+                    }
+                }.then(byName)
             )
             .let { if (reversed) it.reversed() else it }
-        val unknown = directories
+        val unmeasured = directories
             .filter { (it as? ExplorerItem.RegularDirectory)?.computedSize == null }
             .sortedWith(byName)
-        return known + unknown
+        return ranked + unmeasured
     }
 
     private fun sortTrashItems(
