@@ -22,6 +22,7 @@ import eu.darken.butler.common.files.LookupOptions
 import eu.darken.butler.common.files.local.LocalPathLookup
 import eu.darken.butler.common.files.local.operations.core.PathOperationProgressTracker
 import eu.darken.butler.common.files.local.operations.core.PerformanceHistory
+import eu.darken.butler.common.files.metadata.FileType
 import eu.darken.butler.common.formatItemSpeed
 import eu.darken.butler.common.getQuantityString2
 import eu.darken.butler.common.progress.Progress
@@ -115,6 +116,9 @@ class CalculateSizesOperation @AssistedInject constructor(
         val aggregator = DirectorySizeAggregator(root, estimator)
         val tracker = PathOperationProgressTracker(clock = clock)
 
+        // The directory the walk is inside or about to enter, never the scan root itself.
+        var currentDir: APath<*>? = null
+
         fun activeState() = State.Active(
             startedAt = operationContext.startedAt,
             primaryProgress = Progress.Data(
@@ -129,9 +133,9 @@ class CalculateSizesOperation @AssistedInject constructor(
                     Progress.Count.Indeterminate()
                 },
             ),
-            secondaryProgress = topLevel?.current?.let { children?.get(it) }?.let {
+            secondaryProgress = currentDir?.let {
                 Progress.Data(
-                    primary = it.userReadableName,
+                    primary = relativeLabel(it),
                     secondary = CaString.EMPTY,
                     count = Progress.Count.None(),
                 )
@@ -164,15 +168,21 @@ class CalculateSizesOperation @AssistedInject constructor(
             .cancellable()
             .flowOn(dispatcherProvider.IO)
             .collect { lookup ->
-                aggregator.drain(errors, topLevel)
+                val drained = aggregator.drain(errors, topLevel)
                 aggregator.onEntry(lookup)
                 topLevel?.onSeen(lookup.path)
+                // A directory entry is the next one descended into, anything else names its parent.
+                currentDir = when {
+                    lookup.fileType == FileType.DIRECTORY -> lookup.lookedUp
+                    else -> lookup.parent ?: lookup.lookedUp
+                }
+                currentDir = drained ?: currentDir
                 tracker.completeItem()
                 // Compaction buckets samples by this total, without it a long scan drops its start.
                 tracker.totalItems = tracker.itemsProcessed
                 if (tracker.shouldReportProgress()) send(activeState())
             }
-        aggregator.drain(errors, topLevel)
+        currentDir = aggregator.drain(errors, topLevel) ?: currentDir
         topLevel?.finish()
         tracker.totalItems = tracker.itemsProcessed
         tracker.shouldReportProgress(force = true)
@@ -224,15 +234,31 @@ class CalculateSizesOperation @AssistedInject constructor(
         }
     }
 
+    /** `/storage/emulated/0` scanned, `/storage/emulated/0/Android/data` -> `Android/data`. */
+    private fun relativeLabel(dir: APath<*>): CaString {
+        val root = command.directory
+        if (dir.path == root.path) return root.userReadableName
+        val prefix = if (root.path == "/") "/" else "${root.path}/"
+        return if (dir.path.startsWith(prefix)) {
+            dir.path.removePrefix(prefix).toCaString()
+        } else {
+            dir.userReadablePath
+        }
+    }
+
+    /** @return the last failed location that was drained, null when the queue was empty. */
     private fun DirectorySizeAggregator.drain(
         errors: ConcurrentLinkedQueue<Pair<APathLookup<*>, String?>>,
         topLevel: TopLevelProgress?,
-    ) {
+    ): APath<*>? {
+        var lastFailed: APath<*>? = null
         while (true) {
             val (lookup, message) = errors.poll() ?: break
             onError(lookup, message)
             topLevel?.onSeen(lookup.path)
+            lastFailed = lookup.lookedUp
         }
+        return lastFailed
     }
 
     data class Report(

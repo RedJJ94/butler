@@ -259,6 +259,48 @@ class CalculateSizesOperationTest : BaseTest() {
         }.shouldNotBeNull()
 
         onSecondChild.secondaryProgress.shouldNotBeNull().primary.get(stringContext) shouldBe "two"
+
+        // The state sent right after the file entry `/a/one/file`, which names its parent
+        val onFirstChildsFile = states.last {
+            val count = it.primaryProgress.count
+            count is Progress.Count.Counter && count.current == 0L && count.max == 2L
+        }
+        onFirstChildsFile.secondaryProgress.shouldNotBeNull().primary.get(stringContext) shouldBe "one"
+    }
+
+    @Test
+    fun `progress names the scanned directory relative to the root`() = runTest {
+        coEvery { gateway.walk(any(), any(), any()) } returns flow {
+            emit(lookup("/a/one", FileType.DIRECTORY))
+            emit(lookup("/a/one/deep", FileType.DIRECTORY))
+            emit(lookup("/a/one/deep/file", FileType.FILE, size = 10L))
+        }
+
+        val states = operation(DirectorySizeStore(), realIoDispatchers)
+            .perform(context())
+            .toList()
+            .filterIsInstance<ExplorerOperation.State.Active>()
+
+        states.last().secondaryProgress.shouldNotBeNull().primary.get(stringContext) shouldBe "one/deep"
+    }
+
+    @Test
+    fun `progress names a location the walk could not enter`() = runTest {
+        coEvery { gateway.walk(any(), any(), any()) } coAnswers {
+            val options = thirdArg<APathGateway.WalkOptions<LocalPath, LocalPathLookup>>()
+            flow {
+                emit(lookup("/a/one", FileType.DIRECTORY))
+                options.onError!!.invoke(lookup("/a/locked", FileType.UNKNOWN), IOException("denied"))
+                emit(lookup("/a/one/file", FileType.FILE, size = 10L))
+            }
+        }
+
+        val states = operation(DirectorySizeStore(), realIoDispatchers)
+            .perform(context())
+            .toList()
+            .filterIsInstance<ExplorerOperation.State.Active>()
+
+        states.last().secondaryProgress.shouldNotBeNull().primary.get(stringContext) shouldBe "locked"
     }
 
     @Test
