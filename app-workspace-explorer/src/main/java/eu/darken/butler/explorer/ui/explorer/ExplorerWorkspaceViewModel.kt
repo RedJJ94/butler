@@ -444,6 +444,19 @@ class ExplorerWorkspaceViewModel @AssistedInject constructor(
             .onEach { focus.clear() }
             .launchInViewModel()
 
+        // A calculation is only worth anything once the listing ranks by it, so a finished scan
+        // flips the tab to size sort - once per root, because the user is free to sort differently
+        // afterwards. What the folder sorted by before is kept with the scan and put back when the
+        // sizes are discarded.
+        workspaceSource
+            .flatMapLatest { ws -> ws?.directorySizes?.snapshot?.map { ws to it } ?: emptyFlow() }
+            .onEach { (ws, sizes) ->
+                sizes.scans.values
+                    .filter { it.root.path !in sizes.sortSwitches }
+                    .forEach { scan -> switchToSizeSort(ws, scan.root) }
+            }
+            .launchInViewModel()
+
         // A "tap to resolve" conflict notification routes here (see the controller).
         conflicts.focusRequestHandler.launchInViewModel()
 
@@ -699,6 +712,7 @@ class ExplorerWorkspaceViewModel @AssistedInject constructor(
                                 )
                                 is ExplorerActionBarItem.Directory.CalculateSizes -> action.copy(
                                     isEnabled = !isCalculatingSizes,
+                                    isAccented = sizesScannedAt != null,
                                 )
                                 else -> action
                             }
@@ -891,10 +905,51 @@ class ExplorerWorkspaceViewModel @AssistedInject constructor(
         }
     }
 
-    /** The info bar's "Sizes from …" chip: re-runs the calculation for the current folder. */
-    fun onCalculateSizes() = launch {
+    fun onRecalculateSizes() = launch {
+        log(tag) { "onRecalculateSizes()" }
+        dialogs.dismiss()
         val directory = getState().currentLocation as? ExplorerLocation.Directory ?: return@launch
         getWorkspace().calculateSizes(directory.path)
+    }
+
+    /**
+     * Throws the sizes away and puts the folder's previous sort back.
+     *
+     * The scan that covers this folder may be rooted at an ancestor - that root is what carries the
+     * sizes and the remembered sort, so it is what is discarded here.
+     */
+    fun onDiscardSizes() = launch {
+        log(tag) { "onDiscardSizes()" }
+        dialogs.dismiss()
+        val directory = getState().currentLocation as? ExplorerLocation.Directory ?: return@launch
+        val workspace = getWorkspace()
+        val scanRoot = workspace.directorySizes.snapshot.value.scanFor(directory.path)?.root ?: return@launch
+        val restore = workspace.directorySizes.discard(scanRoot) ?: return@launch
+
+        val key = scanRoot.sortPathKey()
+        val previousRule = restore.previousRule
+        tabSortStore.update(id) {
+            it.copy(
+                rules = if (previousRule == null) it.rules - key else it.rules + (key to previousRule),
+            )
+        }
+    }
+
+    private fun switchToSizeSort(workspace: ExplorerWorkspace, root: APath<*>) {
+        val key = root.sortPathKey()
+        workspace.directorySizes.recordSortSwitch(root, viewSettings.tabOverrides.value.rules[key])
+        log(tag) { "switchToSizeSort(): ${root.path}" }
+        tabSortStore.update(id) {
+            it.copy(
+                rules = it.rules + (
+                    key to TabSortRule(
+                        settings = SortSettings(mode = SortSettings.Mode.SIZE, reversed = true),
+                        subtree = true,
+                        path = json.encodeToString(PolymorphicSerializer(APath::class), root),
+                    )
+                    ),
+            )
+        }
     }
 
     fun executeAction(action: ExplorerActionBarItem) = launch {
@@ -1101,7 +1156,20 @@ class ExplorerWorkspaceViewModel @AssistedInject constructor(
             }
             is ExplorerActionBarItem.Directory.CalculateSizes -> {
                 val directory = stateSnap.currentLocation as? ExplorerLocation.Directory ?: return@launch
-                getWorkspace().calculateSizes(directory.path)
+                val workspace = getWorkspace()
+                val scan = workspace.directorySizes.snapshot.value.scanFor(directory.path)
+                if (scan != null) {
+                    dialogs.show(
+                        ExplorerDialogState.CalculatedSizes(
+                            root = scan.root,
+                            scannedAt = scan.scannedAt,
+                            directoryCount = scan.sizes.size,
+                            errorCount = scan.errorCount,
+                        )
+                    )
+                } else {
+                    workspace.calculateSizes(directory.path)
+                }
             }
             is ExplorerActionBarItem.Common.AddToFavorites -> {
                 favoritesController.addAll(action.items)

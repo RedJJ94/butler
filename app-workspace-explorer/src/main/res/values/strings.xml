@@ -229,7 +229,6 @@
         <item quantity="other">%d locations</item>
     </plurals>
     <string name="explorer_infobar_storage_free">%1$s free</string>
-    <string name="explorer_infobar_sizes_scanned_at">Sizes from %1$s</string>
     <string name="explorer_infobar_loading">Loading…</string>
 
     <!-- Dialogs -->
@@ -369,6 +368,20 @@
     <string name="explorer_sort_suppressed_notice">This overrides the rule saved for %1$s</string>
     <string name="explorer_sort_tab_overrides_default_notice">This tab uses its own default sort order</string>
     <string name="explorer_sort_tab_overrides_clear_action">Clear</string>
+
+    <!-- Folder Sizes -->
+    <string name="explorer_sizes_sheet_title">Folder sizes</string>
+    <string name="explorer_sizes_sheet_calculated_at">Calculated %1$s</string>
+    <plurals name="explorer_sizes_sheet_folders">
+        <item quantity="one">%1$d folder measured</item>
+        <item quantity="other">%1$d folders measured</item>
+    </plurals>
+    <plurals name="explorer_sizes_sheet_unreadable">
+        <item quantity="one">%1$d location could not be read</item>
+        <item quantity="other">%1$d locations could not be read</item>
+    </plurals>
+    <string name="explorer_sizes_sheet_recalculate">Recalculate</string>
+    <string name="explorer_sizes_sheet_discard">Discard sizes</string>
 
     <!-- View Options -->
     <string name="explorer_view_sheet_subtitle">How items are arranged and how much detail they show</string>

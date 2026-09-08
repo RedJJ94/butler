@@ -187,6 +187,8 @@ sealed interface ExplorerActionBarItem : WorkspaceActionBarItem {
 
         data class CalculateSizes(
             override val isEnabled: Boolean = true,
+            /** Accented while this folder has sizes, where tapping opens them instead of recalculating. */
+            override val isAccented: Boolean = false,
             override val group: WorkspaceActionBarItem.Group = WorkspaceActionBarItem.Group.SECONDARY,
         ) : Directory {
             override val icon = Icons.TwoTone.DataUsage

@@ -183,6 +183,7 @@ fun <T : WorkspaceActionBarItem> WorkspaceActionBar(
                                         tint = when {
                                             !action.isEnabled -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                                             action.isDestructive -> MaterialTheme.colorScheme.error
+                                            action.isAccented -> MaterialTheme.colorScheme.primary
                                             else -> LocalContentColor.current
                                         },
                                     )
@@ -259,6 +260,7 @@ fun <T : WorkspaceActionBarItem> WorkspaceActionBar(
                                             contentDescription = null,
                                             tint = when {
                                                 action.isDestructive -> MaterialTheme.colorScheme.error
+                                                action.isAccented -> MaterialTheme.colorScheme.primary
                                                 else -> LocalContentColor.current
                                             }
                                         )

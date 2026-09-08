@@ -11,6 +11,7 @@ import eu.darken.butler.explorer.core.engine.ExplorerItem
 import eu.darken.butler.explorer.core.operations.ExplorerCommand
 import eu.darken.butler.workspace.contracts.dnd.WorkspaceDragPayload
 import eu.darken.butler.workspace.core.clipboard.ClipboardClip
+import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
 sealed interface ExplorerDialogState {
@@ -67,6 +68,17 @@ sealed interface ExplorerDialogState {
      * reflected by the controls themselves and not just by the listing behind them.
      */
     data object EditViewStyle : ExplorerDialogState
+
+    /**
+     * What a "Calculate sizes" run produced for the folder that is open, and what can be done with
+     * it. [root] is the scan's own root, which may be an ancestor of that folder.
+     */
+    data class CalculatedSizes(
+        val root: APath<*>,
+        val scannedAt: Instant,
+        val directoryCount: Int,
+        val errorCount: Int,
+    ) : ExplorerDialogState
 
     data class FilterOptions(
         val includePattern: String,
