@@ -13,17 +13,21 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.twotone.DriveFileMove
 import androidx.compose.material.icons.automirrored.twotone.NoteAdd
+import androidx.compose.material.icons.twotone.Block
 import androidx.compose.material.icons.twotone.Cancel
 import androidx.compose.material.icons.twotone.CheckCircle
 import androidx.compose.material.icons.twotone.Compress
 import androidx.compose.material.icons.twotone.CopyAll
 import androidx.compose.material.icons.twotone.CreateNewFolder
 import androidx.compose.material.icons.twotone.Delete
+import androidx.compose.material.icons.twotone.DeleteSweep
 import androidx.compose.material.icons.twotone.Error
 import androidx.compose.material.icons.twotone.ErrorOutline
+import androidx.compose.material.icons.twotone.Extension
 import androidx.compose.material.icons.twotone.InstallMobile
 import androidx.compose.material.icons.twotone.Restore
 import androidx.compose.material.icons.twotone.Save
+import androidx.compose.material.icons.twotone.StopCircle
 import androidx.compose.material.icons.twotone.Unarchive
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
@@ -196,7 +200,8 @@ private fun CountText(entry: HistoryEntry) {
 @Composable
 private fun HistoryEntry.headline(): String {
     val label = stringResource(intent?.headlineLabelRes ?: kind.headlineLabelRes)
-    val target = displayPath()?.substringAfterLast('/')
+    // A row without a path names its subject through the description, e.g. the app label.
+    val target = displayPath()?.substringAfterLast('/') ?: description.takeIf { it.isNotBlank() }
     return if (target.isNullOrBlank()) {
         label
     } else {
@@ -221,6 +226,12 @@ internal fun Operation.Metadata.Kind.icon(): ImageVector = when (this) {
     Operation.Metadata.Kind.EXTRACT -> Icons.TwoTone.Unarchive
     Operation.Metadata.Kind.RESTORE -> Icons.TwoTone.Restore
     Operation.Metadata.Kind.INSTALL -> Icons.TwoTone.InstallMobile
+    Operation.Metadata.Kind.ENABLE -> Icons.TwoTone.CheckCircle
+    Operation.Metadata.Kind.DISABLE -> Icons.TwoTone.Block
+    Operation.Metadata.Kind.FORCE_STOP -> Icons.TwoTone.StopCircle
+    Operation.Metadata.Kind.UNINSTALL -> Icons.TwoTone.Delete
+    Operation.Metadata.Kind.CLEAR_DATA -> Icons.TwoTone.DeleteSweep
+    Operation.Metadata.Kind.COMPONENTS -> Icons.TwoTone.Extension
 }
 
 @Composable
@@ -270,6 +281,36 @@ private fun HistoryEntryRowPreview() {
                     change = Operation.Report.Paths.PathChange.Change.ADDED,
                 ),
             ),
+        ),
+        onClick = {},
+    )
+}
+
+@Preview2
+@ComposePreviewWrapper(ButlerPreviewWrapper::class)
+@Composable
+private fun HistoryEntryRowPackagePreview() {
+    val now = Clock.System.now()
+    HistoryEntryRow(
+        entry = HistoryEntry(
+            id = "6",
+            kind = Operation.Metadata.Kind.UNINSTALL,
+            intent = null,
+            originType = HistoryEntry.OriginType.APPS,
+            originWorkspaceId = "abc",
+            title = "Uninstall app",
+            description = "PP Test App",
+            summary = "PP Test App uninstalled",
+            startedAt = now - 12.seconds,
+            completedAt = now - 8.seconds,
+            duration = 4.seconds,
+            outcome = HistoryOutcome.COMPLETED,
+            errorMessage = null,
+            errorClass = null,
+            affectedPathsCount = 0,
+            partialErrorCount = 0,
+            pathsTruncated = false,
+            paths = emptyList(),
         ),
         onClick = {},
     )
