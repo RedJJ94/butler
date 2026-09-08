@@ -19,14 +19,18 @@ import eu.darken.butler.common.files.APathGateway
 import eu.darken.butler.common.files.APathLookup
 import eu.darken.butler.common.files.GatewaySwitch
 import eu.darken.butler.common.files.LookupOptions
+import eu.darken.butler.common.files.local.LocalPathLookup
 import eu.darken.butler.common.files.local.operations.core.PathOperationProgressTracker
 import eu.darken.butler.common.files.local.operations.core.PerformanceHistory
 import eu.darken.butler.common.formatItemSpeed
 import eu.darken.butler.common.getQuantityString2
 import eu.darken.butler.common.progress.Progress
+import eu.darken.butler.common.storage.ExternalStorageStatsProvider
 import eu.darken.butler.explorer.R
 import eu.darken.butler.explorer.core.sizes.DirectorySizeAggregator
 import eu.darken.butler.explorer.core.sizes.DirectorySizeStore
+import eu.darken.butler.explorer.core.sizes.AndroidDataEstimate
+import eu.darken.butler.explorer.core.sizes.AndroidDataSizeEstimator
 import eu.darken.butler.explorer.core.sizes.TopLevelProgress
 import eu.darken.butler.workspace.core.Workspace
 import eu.darken.butler.workspace.core.operations.Operation
@@ -34,6 +38,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.cancellable
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Clock
@@ -45,6 +52,7 @@ class CalculateSizesOperation @AssistedInject constructor(
     private val gatewaySwitch: GatewaySwitch,
     private val dispatcherProvider: DispatcherProvider,
     private val clock: Clock,
+    private val externalStorageStats: ExternalStorageStatsProvider,
 ) : ExplorerOperation() {
 
     private val tag = logTag("Explorer", "Workspace", workspaceId.shortTag, "Operation", "CalculateSizes")
@@ -81,7 +89,30 @@ class CalculateSizesOperation @AssistedInject constructor(
         }
         val topLevel = children?.let { TopLevelProgress(root.path, it.keys) }
 
-        val aggregator = DirectorySizeAggregator(root)
+        val estimateTarget = try {
+            externalStorageStats.prepare(root)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            log(tag, WARN) { "Storage estimate unavailable for $root: ${e.asLog()}" }
+            null
+        }
+        val estimator = estimateTarget?.let { AndroidDataSizeEstimator(it.root) }
+        val lookupProjection = LOOKUP_PROJECTION.copy(fetchAllocatedSize = estimator != null)
+        if (estimator != null) {
+            try {
+                val rootLookup = withContext(dispatcherProvider.IO) {
+                    gatewaySwitch.lookup(checkNotNull(estimateTarget).canonicalRoot, lookupProjection)
+                }
+                estimator.onEntry((rootLookup as LocalPathLookup).copy(lookedUp = estimateTarget.root))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                estimator.onError(root)
+                log(tag, WARN) { "Cannot measure root allocation for $root: ${e.asLog()}" }
+            }
+        }
+        val aggregator = DirectorySizeAggregator(root, estimator)
         val tracker = PathOperationProgressTracker(clock = clock)
 
         fun activeState() = State.Active(
@@ -129,7 +160,7 @@ class CalculateSizesOperation @AssistedInject constructor(
             },
         )
 
-        typedGateway.walk(root, LOOKUP_PROJECTION, walkOptions)
+        typedGateway.walk(root, lookupProjection, walkOptions)
             .cancellable()
             .flowOn(dispatcherProvider.IO)
             .collect { lookup ->
@@ -147,7 +178,20 @@ class CalculateSizesOperation @AssistedInject constructor(
         tracker.shouldReportProgress(force = true)
         send(activeState())
 
-        val scan = aggregator.result(clock.now())
+        var scan = aggregator.result(clock.now())
+        if (estimator?.dataIncomplete == true && estimateTarget != null) {
+            scan = if (!estimator.canEstimate) {
+                scan.copy(estimateFailure = AndroidDataEstimate.Failure.INCOMPLETE_COVERAGE)
+            } else try {
+                estimator.apply(scan, estimateTarget, externalStorageStats.query(estimateTarget))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                log(tag, WARN) { "Failed to estimate Android/data: ${e.asLog()}" }
+                scan.copy(estimateFailure = AndroidDataEstimate.Failure.STATISTICS_UNAVAILABLE)
+            }
+        }
+        currentCoroutineContext().ensureActive()
         log(tag, INFO) { "Scanned $root: ${scan.sizes.size} folders, ${scan.errorCount} errors" }
         val stored = checkNotNull(resultStore).publish(scan)
 

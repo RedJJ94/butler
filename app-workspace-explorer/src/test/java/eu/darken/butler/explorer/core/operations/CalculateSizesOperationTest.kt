@@ -3,11 +3,16 @@ package eu.darken.butler.explorer.core.operations
 import android.content.Context
 import eu.darken.butler.common.coroutine.DispatcherProvider
 import eu.darken.butler.common.files.APathGateway
+import eu.darken.butler.common.files.APath
+import eu.darken.butler.common.files.APathLookup
 import eu.darken.butler.common.files.GatewaySwitch
 import eu.darken.butler.common.files.LocalPath
 import eu.darken.butler.common.files.local.LocalPathLookup
 import eu.darken.butler.common.files.metadata.FileType
 import eu.darken.butler.common.progress.Progress
+import eu.darken.butler.common.storage.ExternalStorageStatsProvider
+import eu.darken.butler.common.user.UserHandle2
+import eu.darken.butler.explorer.core.sizes.AndroidDataEstimate
 import eu.darken.butler.explorer.core.sizes.DirectorySizeStore
 import eu.darken.butler.workspace.core.Workspace
 import eu.darken.butler.workspace.core.operations.Operation
@@ -18,8 +23,10 @@ import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.beInstanceOf
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
@@ -38,10 +45,14 @@ import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
+import kotlin.uuid.Uuid
 
 class CalculateSizesOperationTest : BaseTest() {
 
     private val root = LocalPath.build("/a")
+    private val externalStorageStats = mockk<ExternalStorageStatsProvider> {
+        coEvery { prepare(any()) } returns null
+    }
 
     /** Only ever handed to a [eu.darken.butler.common.ca.CaString] that ignores it. */
     private val stringContext = mockk<Context>()
@@ -80,9 +91,86 @@ class CalculateSizesOperationTest : BaseTest() {
             gatewaySwitch = gatewaySwitch,
             dispatcherProvider = dispatcherProvider,
             clock = SteppingClock(),
+            externalStorageStats = externalStorageStats,
         )
 
     private fun context() = Operation.Context(id = Operation.Id(), startedAt = Instant.DISTANT_PAST)
+
+    private fun estimatedWalk(): ExternalStorageStatsProvider.Target {
+        val target = ExternalStorageStatsProvider.Target(root, Uuid.NIL, UserHandle2())
+        coEvery { externalStorageStats.prepare(root) } returns target
+        @Suppress("UNCHECKED_CAST")
+        val rootLookup = lookup(root.path, FileType.DIRECTORY).copy(allocatedSize = 100) as APathLookup<APath<*>>
+        coEvery { gatewaySwitch.lookup(root, any()) } returns rootLookup
+        coEvery { externalStorageStats.query(target) } returns ExternalStorageStatsProvider.Snapshot(5000, Instant.DISTANT_PAST)
+        coEvery { gateway.walk(any(), any(), any()) } coAnswers {
+            secondArg<eu.darken.butler.common.files.LookupOptions>().fetchAllocatedSize shouldBe true
+            val options = thirdArg<APathGateway.WalkOptions<LocalPath, LocalPathLookup>>()
+            flow {
+                emit(lookup("/a/Android", FileType.DIRECTORY).copy(allocatedSize = 100))
+                emit(lookup("/a/Android/data", FileType.DIRECTORY).copy(allocatedSize = 100))
+                emit(lookup("/a/visible", FileType.FILE, 1000).copy(allocatedSize = 1000))
+                options.onError!!.invoke(lookup("/a/Android/data", FileType.DIRECTORY), IOException("denied"))
+                options.onError!!.invoke(lookup("/a/Android/obb", FileType.DIRECTORY), IOException("denied"))
+            }
+        }
+        return target
+    }
+
+    @Test
+    fun `an estimated scan publishes provenance without clearing its unreadable locations`() = runTest {
+        val target = estimatedWalk()
+        val store = DirectorySizeStore()
+        val completed = operation(store, realIoDispatchers).perform(context()).last() as ExplorerOperation.State.Completed
+        val scan = store.snapshot.value.scanFor(root).shouldNotBeNull()
+        scan.estimate!!.target shouldBe target
+        scan.sizes.getValue("/a/Android/data").bytes shouldBe 3700L
+        scan.sizes.getValue("/a").hasUnestimatedContent shouldBe true
+        (completed.report as CalculateSizesOperation.Report).errorCount shouldBe 2
+        scan.problems.size shouldBe 2
+    }
+
+    @Test
+    fun `statistics failure leaves the measured scan intact`() = runTest {
+        val target = estimatedWalk()
+        coEvery { externalStorageStats.query(target) } throws IOException("unavailable")
+        val store = DirectorySizeStore()
+        operation(store, realIoDispatchers).perform(context()).last()
+        store.snapshot.value.scanFor(root).shouldNotBeNull().apply {
+            estimate shouldBe null
+            estimateFailure shouldBe AndroidDataEstimate.Failure.STATISTICS_UNAVAILABLE
+            sizes.getValue("/a").bytes shouldBe 1000L
+        }
+    }
+
+    @Test
+    fun `cancellation while querying statistics publishes nothing`() = runTest {
+        val target = estimatedWalk()
+        val entered = CompletableDeferred<Unit>()
+        coEvery { externalStorageStats.query(target) } coAnswers {
+            entered.complete(Unit)
+            awaitCancellation()
+        }
+        val store = DirectorySizeStore()
+        val job = launch { operation(store, realIoDispatchers).perform(context()).collect() }
+        entered.await()
+        job.cancelAndJoin()
+        store.snapshot.value.scans shouldBe emptyMap()
+    }
+
+    @Test
+    fun `invalidation during the statistics query discards the whole estimate`() = runTest {
+        val target = estimatedWalk()
+        val store = DirectorySizeStore()
+        store.markRunning(root)
+        coEvery { externalStorageStats.query(target) } coAnswers {
+            store.invalidate(listOf(root.child("visible")))
+            ExternalStorageStatsProvider.Snapshot(5000, Instant.DISTANT_PAST)
+        }
+        val completed = operation(store, realIoDispatchers).perform(context()).last() as ExplorerOperation.State.Completed
+        (completed.report as CalculateSizesOperation.Report).wasDiscarded shouldBe true
+        store.snapshot.value.scans shouldBe emptyMap()
+    }
 
     @Test
     fun `a failed location is reported and the totals are published`() = runTest {
@@ -109,6 +197,7 @@ class CalculateSizesOperationTest : BaseTest() {
         scan.sizes.getValue("/a").bytes shouldBe 10L
         scan.sizes.getValue("/a").isComplete shouldBe false
         scan.sizes.getValue("/a/b").isComplete shouldBe true
+        coVerify(exactly = 0) { externalStorageStats.query(any()) }
     }
 
     @Test

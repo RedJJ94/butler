@@ -42,11 +42,16 @@ import eu.darken.butler.common.compose.PreviewWrapper
 import eu.darken.butler.common.compose.asComposable
 import eu.darken.butler.common.files.LocalPath
 import eu.darken.butler.common.formatRelativeTime
+import eu.darken.butler.common.formatFileSize
+import eu.darken.butler.common.storage.ExternalStorageStatsProvider
+import eu.darken.butler.common.user.UserHandle2
 import eu.darken.butler.explorer.R
 import eu.darken.butler.explorer.core.sizes.ScanProblem
+import eu.darken.butler.explorer.core.sizes.AndroidDataEstimate
 import eu.darken.butler.workspace.ui.bottomsheet.PaneScopedBottomSheet
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.minutes
+import kotlin.uuid.Uuid
 import eu.darken.butler.workspace.R as WorkspaceR
 
 /**
@@ -163,6 +168,29 @@ private fun CalculatedSizesContent(
             }
         }
 
+        state.estimate?.let { estimate ->
+            InfoRow(
+                label = estimate.path.segments.takeLast(2).joinToString("/"),
+                value = stringResource(R.string.explorer_file_size_estimated, formatFileSize(estimate.displayedBytes)),
+            )
+            Text(
+                text = stringResource(R.string.explorer_sizes_estimate_description),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        state.estimateFailure?.let { failure ->
+            Text(
+                text = stringResource(when (failure) {
+                    AndroidDataEstimate.Failure.INCOMPLETE_COVERAGE -> R.string.explorer_sizes_estimate_coverage
+                    AndroidDataEstimate.Failure.STATISTICS_UNAVAILABLE -> R.string.explorer_sizes_estimate_unavailable
+                    AndroidDataEstimate.Failure.INCONSISTENT_TOTAL -> R.string.explorer_sizes_estimate_inconsistent
+                }),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
@@ -175,6 +203,37 @@ private fun CalculatedSizesContent(
             }
         }
     }
+}
+
+@Preview2
+@ComposePreviewWrapper(ButlerPreviewWrapper::class)
+@Composable
+private fun CalculatedSizesEstimatedPreview() {
+    val root = LocalPath.build("/storage/emulated/0")
+    CalculatedSizesContent(
+        state = previewState(errorCount = 2).copy(
+            root = root,
+            estimate = AndroidDataEstimate(
+                target = ExternalStorageStatsProvider.Target(root, Uuid.NIL, UserHandle2()),
+                stats = ExternalStorageStatsProvider.Snapshot(20_000_000_000L, Clock.System.now()),
+                outsideAllocatedBytes = 8_000_000_000L,
+                measuredDataAllocatedBytes = 0,
+                missingAllocatedBytes = 12_000_000_000L,
+                displayedBytes = 12_000_000_000L,
+            ),
+        ),
+        onRecalculate = {}, onDiscard = {},
+    )
+}
+
+@Preview2
+@ComposePreviewWrapper(ButlerPreviewWrapper::class)
+@Composable
+private fun CalculatedSizesEstimateUnavailablePreview() {
+    CalculatedSizesContent(
+        state = previewState(errorCount = 2).copy(estimateFailure = AndroidDataEstimate.Failure.INCOMPLETE_COVERAGE),
+        onRecalculate = {}, onDiscard = {},
+    )
 }
 
 @Composable

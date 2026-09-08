@@ -21,7 +21,12 @@ import eu.darken.butler.explorer.core.sizes.DirectorySize
 /** A folder's calculated size, marked as a lower bound when part of the folder could not be read. */
 @Composable
 internal fun directorySizeLabel(size: DirectorySize): String = formatFileSize(size.bytes).let {
-    if (size.isComplete) it else stringResource(R.string.explorer_file_size_partial, it)
+    when {
+        size.isEstimated && size.hasUnestimatedContent -> stringResource(R.string.explorer_file_size_estimated_partial, it)
+        size.isEstimated -> stringResource(R.string.explorer_file_size_estimated, it)
+        !size.isComplete -> stringResource(R.string.explorer_file_size_partial, it)
+        else -> it
+    }
 }
 
 /** How this folder's size compares to the largest one in the listing. */

@@ -3,11 +3,16 @@ package eu.darken.butler.explorer.core.sizes
 import eu.darken.butler.common.files.APath
 import kotlin.time.Instant
 
-/** The recursive apparent size of a directory; [isComplete] is false when part of it could not be read. */
+/** [bytes] includes any estimated missing contribution; [isComplete] describes actual traversal. */
 data class DirectorySize(
     val bytes: Long,
     val isComplete: Boolean,
-)
+    val estimatedMissingBytes: Long? = null,
+    val hasUnestimatedContent: Boolean = !isComplete,
+) {
+    val measuredBytes: Long get() = bytes - (estimatedMissingBytes ?: 0L)
+    val isEstimated: Boolean get() = estimatedMissingBytes != null
+}
 
 /**
  * One completed walk of [root].
@@ -25,6 +30,8 @@ data class DirectoryScan(
     val errorCount: Int,
     /** The first [DirectorySizeAggregator.MAX_PROBLEMS] of those, for display. */
     val problems: List<ScanProblem> = emptyList(),
+    val estimate: AndroidDataEstimate? = null,
+    val estimateFailure: AndroidDataEstimate.Failure? = null,
 )
 
 /** A location the walk could not read, or an entry it could not size. */

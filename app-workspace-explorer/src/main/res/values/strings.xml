@@ -44,6 +44,12 @@
     <string name="explorer_file_items_count">%1$d items</string>
     <string name="explorer_file_empty">Empty</string>
     <string name="explorer_file_size_partial">≥ %1$s</string>
+    <string name="explorer_file_size_estimated">≈ %1$s</string>
+    <string name="explorer_file_size_estimated_partial">≈ %1$s · partial</string>
+    <string name="explorer_sizes_estimate_description">Estimated from Android storage totals. For unreadable files, occupied storage is used as an estimate of file size. Hidden files managed by Android may also be included. Other unreadable locations remain unknown.</string>
+    <string name="explorer_sizes_estimate_coverage">Android/data could not be estimated because other parts of storage could not be fully measured.</string>
+    <string name="explorer_sizes_estimate_unavailable">Android storage statistics were unavailable. Measured sizes are still shown.</string>
+    <string name="explorer_sizes_estimate_inconsistent">Android storage totals did not agree with the scan. Measured sizes are still shown.</string>
 
     <!-- Picker Mode -->
     <string name="explorer_picker_select_directory_title">Select folder</string>

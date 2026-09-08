@@ -72,4 +72,13 @@ class ExplorerItemSorterSizeTest : BaseTest() {
 
         sorted.names() shouldBe listOf("alpha", "big", "small", "zeta", "large.txt", "tiny.txt")
     }
+
+    @Test
+    fun `estimates sort by their displayed total including the missing contribution`() {
+        val estimated = directory("estimated").copy(computedSize = DirectorySize(5000, false, 4900, true))
+        sorter.sortItems(
+            listOf(file("file", 1000), estimated, directory("unknown")),
+            SortSettings(mode = SortSettings.Mode.SIZE, reversed = true),
+        ).names() shouldBe listOf("estimated", "file", "unknown")
+    }
 }

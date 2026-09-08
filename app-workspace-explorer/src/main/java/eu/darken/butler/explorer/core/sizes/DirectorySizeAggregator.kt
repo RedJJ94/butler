@@ -10,7 +10,10 @@ import kotlin.time.Instant
  *
  * Not thread-safe: every entry and every error has to be handed in from the same coroutine.
  */
-class DirectorySizeAggregator(private val root: APath<*>) {
+class DirectorySizeAggregator(
+    private val root: APath<*>,
+    private val allocationCoverage: AndroidDataSizeEstimator? = null,
+) {
 
     private val rootKey = root.path
     private val sizes = HashMap<String, Long>().apply { put(rootKey, 0L) }
@@ -23,6 +26,7 @@ class DirectorySizeAggregator(private val root: APath<*>) {
         private set
 
     fun onEntry(lookup: APathLookup<*>) {
+        allocationCoverage?.onEntry(lookup)
         itemCount++
         val key = lookup.path
         if (!isUnderRoot(key)) return
@@ -56,6 +60,7 @@ class DirectorySizeAggregator(private val root: APath<*>) {
      * truncated total and has to be marked too.
      */
     fun onError(lookup: APathLookup<*>, message: String?) {
+        allocationCoverage?.onError(lookup.lookedUp)
         recordProblem(lookup, message)
         val key = lookup.path
         if (key != rootKey && !isUnderRoot(key)) return
