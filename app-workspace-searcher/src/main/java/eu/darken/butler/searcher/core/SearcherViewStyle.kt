@@ -3,36 +3,30 @@ package eu.darken.butler.searcher.core
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
+/**
+ * [mode] is persisted under the wire key `type`, and stored payloads rely on that: renaming it
+ * silently resets the saved mode of every tab and every default, keeping their density.
+ */
 @Serializable
-sealed class SearcherViewStyle {
+data class SearcherViewStyle(
+    @SerialName("type") val mode: Mode = Mode.LIST,
+    @SerialName("density") val density: Density = Density.COMFORTABLE,
+) {
 
     @Serializable
-    @SerialName("list")
-    data class List(
-        @SerialName("density") val density: Density = Density.COMFORTABLE,
-    ) : SearcherViewStyle() {
-        @Serializable
-        enum class Density {
-            @SerialName("compact") COMPACT,
-            @SerialName("comfortable") COMFORTABLE,
-            @SerialName("detailed") DETAILED,
-        }
+    enum class Mode {
+        @SerialName("list") LIST,
+        @SerialName("grid") GRID,
     }
 
     @Serializable
-    @SerialName("grid")
-    data class Grid(
-        @SerialName("size") val size: GridSize = GridSize.MEDIUM,
-    ) : SearcherViewStyle() {
-        @Serializable
-        enum class GridSize {
-            @SerialName("small") SMALL,
-            @SerialName("medium") MEDIUM,
-            @SerialName("large") LARGE,
-        }
+    enum class Density {
+        @SerialName("compact") COMPACT,
+        @SerialName("comfortable") COMFORTABLE,
+        @SerialName("detailed") DETAILED,
     }
 
     companion object {
-        fun default(): SearcherViewStyle = List()
+        fun default(): SearcherViewStyle = SearcherViewStyle()
     }
 }

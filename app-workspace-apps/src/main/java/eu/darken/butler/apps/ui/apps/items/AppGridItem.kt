@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -36,10 +37,12 @@ import eu.darken.butler.common.compose.ButlerPreviewWrapper
 import eu.darken.butler.common.theming.onScrim
 import eu.darken.butler.common.compose.Preview2
 import eu.darken.butler.common.compose.PreviewWrapper
+import eu.darken.butler.workspace.contracts.apps.AppsViewStyle
 
 @Composable
 fun AppGridItem(
     item: AppItem,
+    density: AppsViewStyle.Density,
     isSelected: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
@@ -48,6 +51,8 @@ fun AppGridItem(
 ) {
     val context = LocalContext.current
     val shape = RoundedCornerShape(8.dp)
+    val showsVersionInCorner =
+        density == AppsViewStyle.Density.DETAILED && !item.versionName.isNullOrBlank()
 
     Card(
         modifier = modifier
@@ -76,69 +81,38 @@ fun AppGridItem(
                     onLongClick = onLongClick,
                 ),
         ) {
-            // App icon centered
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (item.icon != null) {
-                    val fallbackPainter = rememberAppIconFallbackPainter()
-                    AsyncImage(
-                        model = item.pkg,
-                        contentDescription = null,
-                        modifier = Modifier.size(56.dp),
-                        placeholder = fallbackPainter,
-                        error = fallbackPainter,
-                    )
-                } else {
-                    Icon(
-                        imageVector = Icons.TwoTone.Android,
-                        contentDescription = null,
-                        modifier = Modifier.size(56.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-
-            // Tag chips in top-right
-            if (item.tags.isNotEmpty()) {
+            // The icon takes whatever the label overlay leaves rather than being centred in the
+            // whole tile, where a larger icon would end up behind the overlay. The size chip
+            // stacks above the scrim, which keeps it clear without hardcoding the overlay's
+            // (dynamic, two-line) height.
+            Column(modifier = Modifier.fillMaxSize()) {
                 Box(
                     modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(4.dp),
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .padding(6.dp),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    AppTagRow(
-                        tags = item.tags,
-                        compact = true,
-                    )
+                    if (item.icon != null) {
+                        val fallbackPainter = rememberAppIconFallbackPainter()
+                        AsyncImage(
+                            model = item.pkg,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(density.gridIconFraction),
+                            placeholder = fallbackPainter,
+                            error = fallbackPainter,
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.TwoTone.Android,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(density.gridIconFraction),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
-            }
 
-            // Checkbox in top-left when in selection mode
-            if (showSelection) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(4.dp),
-                ) {
-                    Checkbox(
-                        checked = isSelected,
-                        onCheckedChange = null,
-                        modifier = Modifier.size(24.dp),
-                    )
-                }
-            }
-
-            // Size chip floats above the label scrim; stacking them keeps it clear of the
-            // overlay without hardcoding the overlay's (dynamic, two-line) height.
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.BottomCenter),
-            ) {
-                if (item.appSize != null) {
+                if (item.appSize != null && density.showsSecondaryMetadata) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -169,17 +143,72 @@ fun AppGridItem(
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onScrim,
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Text(
-                            text = item.packageName,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onScrim.copy(alpha = 0.7f),
-                            maxLines = 1,
                             overflow = TextOverflow.MiddleEllipsis,
                         )
+                        if (density.showsSecondaryMetadata) {
+                            Text(
+                                text = item.packageName,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onScrim.copy(alpha = 0.7f),
+                                maxLines = 1,
+                                overflow = TextOverflow.MiddleEllipsis,
+                            )
+                        }
+                        // The checkbox has the corner while selecting, so the version falls back
+                        // to the label overlay rather than disappearing.
+                        if (showSelection && showsVersionInCorner) {
+                            Text(
+                                text = "v${item.versionName}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onScrim.copy(alpha = 0.7f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                     }
                 }
+            }
+
+            // Top row: the selection checkbox or, at detailed density, the version on the left;
+            // tag chips on the right. One row rather than two corner-aligned boxes, so a long
+            // version ellipsizes against the chips instead of running underneath them.
+            //
+            // Tags carry actionable state such as "Disabled", so unlike the package name and the
+            // size they survive every density.
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.TopCenter)
+                    .padding(4.dp),
+                verticalAlignment = Alignment.Top,
+                // Leftover width belongs between the two slots, so the chips stay on the right
+                // edge whatever the leading slot measures. A weighted spacer would keep half of
+                // it for itself and leave the chips floating mid-row.
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                when {
+                    showSelection -> Checkbox(
+                        checked = isSelected,
+                        onCheckedChange = null,
+                        modifier = Modifier.size(24.dp),
+                    )
+                    showsVersionInCorner -> Text(
+                        text = "v${item.versionName}",
+                        modifier = Modifier
+                            .weight(1f, fill = false)
+                            .padding(horizontal = 2.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    // SpaceBetween needs two children to have anything to space apart.
+                    else -> Spacer(modifier = Modifier)
+                }
+                AppTagRow(
+                    tags = item.tags,
+                    compact = true,
+                )
             }
         }
     }
@@ -191,6 +220,7 @@ fun AppGridItem(
 private fun AppGridItemPreview() {
     AppGridItem(
         item = AppsMockDataProvider.Presets.chromeItem,
+        density = AppsViewStyle.Density.COMFORTABLE,
         isSelected = false,
         onClick = {},
         onLongClick = {},
@@ -204,6 +234,7 @@ private fun AppGridItemPreview() {
 private fun AppGridItemSelectedPreview() {
     AppGridItem(
         item = AppsMockDataProvider.Presets.settingsItem,
+        density = AppsViewStyle.Density.COMFORTABLE,
         isSelected = true,
         onClick = {},
         onLongClick = {},
@@ -217,6 +248,7 @@ private fun AppGridItemSelectedPreview() {
 private fun AppGridItemDisabledPreview() {
     AppGridItem(
         item = AppsMockDataProvider.Presets.disabledAppItem,
+        density = AppsViewStyle.Density.COMFORTABLE,
         isSelected = false,
         onClick = {},
         onLongClick = {},
@@ -230,6 +262,7 @@ private fun AppGridItemDisabledPreview() {
 private fun AppGridItemWithTagsPreview() {
     AppGridItem(
         item = AppsMockDataProvider.Presets.multiTagAppItem,
+        density = AppsViewStyle.Density.COMFORTABLE,
         isSelected = false,
         onClick = {},
         onLongClick = {},
@@ -243,6 +276,7 @@ private fun AppGridItemWithTagsPreview() {
 private fun AppGridItemSplitApkPreview() {
     AppGridItem(
         item = AppsMockDataProvider.Presets.splitApkItem,
+        density = AppsViewStyle.Density.COMFORTABLE,
         isSelected = false,
         onClick = {},
         onLongClick = {},
@@ -250,13 +284,14 @@ private fun AppGridItemSplitApkPreview() {
     )
 }
 
-// Smallest real tile (GridSize.SMALL uses a 90dp minimum) with overlong label and package name.
+// Smallest real tile (the compact density uses a 90dp minimum) with overlong label and package name.
 @Preview2
 @ComposePreviewWrapper(ButlerPreviewWrapper::class)
 @Composable
 private fun AppGridItemSmallTileLongNamesPreview() {
     Box(modifier = Modifier.width(90.dp)) {
         AppGridItem(
+            density = AppsViewStyle.Density.COMFORTABLE,
             item = AppsMockDataProvider.createMockAppItem(
                 packageName = "com.superlongvendor.some.deeply.nested.application.identifier",
                 label = "Very Long Application Name",
@@ -276,6 +311,7 @@ private fun AppGridItemSmallTileLongNamesPreview() {
 private fun AppGridItemLargeTileLongNamesPreview() {
     Box(modifier = Modifier.width(160.dp)) {
         AppGridItem(
+            density = AppsViewStyle.Density.COMFORTABLE,
             item = AppsMockDataProvider.createMockAppItem(
                 packageName = "com.superlongvendor.some.deeply.nested.application.identifier",
                 label = "Very Long Application Name",
@@ -296,6 +332,7 @@ private fun AppGridItemLargeTileLongNamesPreview() {
 private fun AppGridItemWithoutSizePreview() {
     Box(modifier = Modifier.width(90.dp)) {
         AppGridItem(
+            density = AppsViewStyle.Density.COMFORTABLE,
             item = AppsMockDataProvider.createMockAppItem(
                 packageName = "com.example.unmeasured",
                 label = "Unmeasured App",
@@ -307,4 +344,32 @@ private fun AppGridItemWithoutSizePreview() {
             showSelection = false,
         )
     }
+}
+
+@Preview2
+@ComposePreviewWrapper(ButlerPreviewWrapper::class)
+@Composable
+private fun AppGridItemCompactPreview() {
+    AppGridItem(
+        item = AppsMockDataProvider.Presets.multiTagAppItem,
+        density = AppsViewStyle.Density.COMPACT,
+        isSelected = false,
+        onClick = {},
+        onLongClick = {},
+        showSelection = false,
+    )
+}
+
+@Preview2
+@ComposePreviewWrapper(ButlerPreviewWrapper::class)
+@Composable
+private fun AppGridItemDetailedPreview() {
+    AppGridItem(
+        item = AppsMockDataProvider.Presets.multiTagAppItem,
+        density = AppsViewStyle.Density.DETAILED,
+        isSelected = false,
+        onClick = {},
+        onLongClick = {},
+        showSelection = false,
+    )
 }

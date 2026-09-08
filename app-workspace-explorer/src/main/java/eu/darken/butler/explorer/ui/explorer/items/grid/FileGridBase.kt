@@ -31,14 +31,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import eu.darken.butler.common.theming.onScrim
+import eu.darken.butler.explorer.core.ExplorerViewStyle
 import eu.darken.butler.explorer.core.engine.ExplorerItem
 import eu.darken.butler.explorer.ui.explorer.items.ItemDecorations
 import eu.darken.butler.explorer.ui.explorer.items.LeadingIconSlot
+import eu.darken.butler.explorer.ui.explorer.items.gridBadgeSize
+import eu.darken.butler.explorer.ui.explorer.items.gridIconSize
 
 @Composable
 internal fun FileGridBase(
     modifier: Modifier = Modifier,
     item: ExplorerItem,
+    density: ExplorerViewStyle.Density,
     isSelected: Boolean,
     onToggleSelection: () -> Unit,
     onClick: () -> Unit,
@@ -127,18 +131,19 @@ internal fun FileGridBase(
                 // Icon or checkbox in top-left. Decorations only apply to the icon
                 // branch — selection swaps in a checkbox and intentionally hides them.
                 if (showSelection) {
-                    Box(modifier = Modifier.size(20.dp)) {
+                    val checkboxSize = maxOf(density.gridIconSize, 20.dp)
+                    Box(modifier = Modifier.size(checkboxSize)) {
                         Checkbox(
                             checked = isSelected,
                             onCheckedChange = { onToggleSelection() },
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(checkboxSize)
                         )
                     }
                 } else {
                     LeadingIconSlot(
-                        modifier = Modifier.size(20.dp),
+                        modifier = Modifier.size(density.gridIconSize),
                         decorations = decorations,
-                        badgeSize = 10.dp,
+                        badgeSize = density.gridBadgeSize,
                     ) {
                         icon()
                     }
@@ -177,7 +182,9 @@ internal fun FileGridBase(
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onScrim,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                        // Middle, not end: a tile is narrow and the extension is what a name
+                        // cut at the end loses first.
+                        overflow = TextOverflow.MiddleEllipsis,
                         modifier = Modifier.fillMaxWidth()
                     )
 

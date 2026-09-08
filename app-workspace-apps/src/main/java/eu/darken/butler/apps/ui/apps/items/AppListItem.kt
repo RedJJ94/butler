@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.twotone.Android
@@ -26,21 +27,28 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.PreviewWrapper as ComposePreviewWrapper
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import eu.darken.butler.apps.R
 import eu.darken.butler.apps.core.engine.AppItem
 import eu.darken.butler.apps.ui.apps.preview.AppsMockDataProvider
 import eu.darken.butler.common.compose.ButlerPreviewWrapper
 import eu.darken.butler.common.compose.Preview2
 import eu.darken.butler.common.compose.PreviewWrapper
+import eu.darken.butler.common.DateTimeStyle
+import eu.darken.butler.common.formatDateTime
+import eu.darken.butler.workspace.contracts.apps.AppsViewStyle
 
 const val APP_SIZE_TAG_ROW_TAG = "app-size-tag-row"
 
 @Composable
 fun AppListItem(
     item: AppItem,
+    density: AppsViewStyle.Density,
     isSelected: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
@@ -64,12 +72,22 @@ fun AppListItem(
                 onClick = onClick,
                 onLongClick = onLongClick,
             )
-            .padding(horizontal = 8.dp, vertical = 8.dp),
+            .padding(horizontal = density.rowPadding, vertical = density.rowVerticalPadding),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(density.rowIconGap),
     ) {
         Box(
-            modifier = Modifier.size(40.dp),
+            modifier = Modifier
+                .size(density.rowIconSize)
+                .then(
+                    if (showSelection) {
+                        Modifier
+                    } else {
+                        Modifier
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                    },
+                ),
             contentAlignment = Alignment.Center
         ) {
             if (showSelection) {
@@ -83,7 +101,7 @@ fun AppListItem(
                     AsyncImage(
                         model = item.pkg,
                         contentDescription = null,
-                        modifier = Modifier.size(40.dp),
+                        modifier = Modifier.size(density.rowIconContentSize),
                         placeholder = fallbackPainter,
                         error = fallbackPainter,
                     )
@@ -91,7 +109,7 @@ fun AppListItem(
                     Icon(
                         imageVector = Icons.TwoTone.Android,
                         contentDescription = null,
-                        modifier = Modifier.size(40.dp),
+                        modifier = Modifier.size(density.rowIconContentSize),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
@@ -104,34 +122,60 @@ fun AppListItem(
         ) {
             Text(
                 text = item.label.get(context),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = item.packageName,
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.MiddleEllipsis,
-                )
-                if (!item.versionName.isNullOrBlank()) {
-                    Spacer(modifier = Modifier.width(8.dp))
+            // Compact is two lines: the label and the tag row. The package name goes with the
+            // version rather than leaving a half-empty line behind.
+            if (density.showsSecondaryMetadata) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Text(
-                        text = "v${item.versionName}",
-                        modifier = Modifier.widthIn(max = 120.dp),
+                        text = item.packageName,
+                        modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.MiddleEllipsis,
+                    )
+                    if (!item.versionName.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "v${item.versionName}",
+                            modifier = Modifier.widthIn(max = 120.dp),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+            if (density == AppsViewStyle.Density.DETAILED) {
+                val installedAt = item.installedAt
+                val updatedAt = item.updatedAt
+                if (installedAt != null && updatedAt != null) {
+                    Text(
+                        text = stringResource(
+                            R.string.apps_view_detail_dates_label,
+                            formatDateTime(installedAt, DateTimeStyle.DATE_NUMERIC),
+                            formatDateTime(updatedAt, DateTimeStyle.DATE_NUMERIC),
+                        ),
+                        style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
             }
-            if (item.tags.isNotEmpty() || item.appSize != null) {
+            // Tags carry actionable state such as "Disabled", so compact keeps them and only
+            // drops the size chip. Detailed adds a dates line above, which puts this row fourth.
+            val showsSizeChip = item.appSize != null && density.showsSecondaryMetadata
+            if (item.tags.isNotEmpty() || showsSizeChip) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -149,8 +193,8 @@ fun AppListItem(
                     } else {
                         Spacer(modifier = Modifier.weight(1f))
                     }
-                    if (item.appSize != null) {
-                        AppSizeChip(bytes = item.appSize)
+                    if (showsSizeChip) {
+                        AppSizeChip(bytes = item.appSize!!)
                     }
                 }
             }
@@ -164,6 +208,7 @@ fun AppListItem(
 private fun AppListItemPreview() {
     AppListItem(
         item = AppsMockDataProvider.Presets.chromeItem,
+        density = AppsViewStyle.Density.COMFORTABLE,
         isSelected = false,
         onClick = {},
         onLongClick = {},
@@ -177,6 +222,7 @@ private fun AppListItemPreview() {
 private fun AppListItemSelectedPreview() {
     AppListItem(
         item = AppsMockDataProvider.Presets.settingsItem,
+        density = AppsViewStyle.Density.COMFORTABLE,
         isSelected = true,
         onClick = {},
         onLongClick = {},
@@ -190,6 +236,7 @@ private fun AppListItemSelectedPreview() {
 private fun AppListItemDisabledPreview() {
     AppListItem(
         item = AppsMockDataProvider.Presets.disabledAppItem,
+        density = AppsViewStyle.Density.COMFORTABLE,
         isSelected = false,
         onClick = {},
         onLongClick = {},
@@ -203,6 +250,7 @@ private fun AppListItemDisabledPreview() {
 private fun AppListItemWithTagsPreview() {
     AppListItem(
         item = AppsMockDataProvider.Presets.multiTagAppItem,
+        density = AppsViewStyle.Density.COMFORTABLE,
         isSelected = false,
         onClick = {},
         onLongClick = {},
@@ -215,6 +263,7 @@ private fun AppListItemWithTagsPreview() {
 @Composable
 private fun AppListItemWithSizeAndTagsPreview() {
     AppListItem(
+        density = AppsViewStyle.Density.COMFORTABLE,
         item = AppsMockDataProvider.Presets.multiTagAppItem.copy(
             appSize = AppsMockDataProvider.MockSizes.gb(1),
         ),
@@ -230,6 +279,7 @@ private fun AppListItemWithSizeAndTagsPreview() {
 @Composable
 private fun AppListItemWithSizeNoTagsPreview() {
     AppListItem(
+        density = AppsViewStyle.Density.COMFORTABLE,
         item = AppsMockDataProvider.createMockAppItem(
             packageName = "com.example.notes",
             label = "Notes",
@@ -247,6 +297,7 @@ private fun AppListItemWithSizeNoTagsPreview() {
 @Composable
 private fun AppListItemWithoutSizePreview() {
     AppListItem(
+        density = AppsViewStyle.Density.COMFORTABLE,
         item = AppsMockDataProvider.createMockAppItem(
             packageName = "com.example.unmeasured",
             label = "Unmeasured App",
@@ -265,6 +316,7 @@ private fun AppListItemWithoutSizePreview() {
 private fun AppListItemSplitApkPreview() {
     AppListItem(
         item = AppsMockDataProvider.Presets.updatedSystemItem,
+        density = AppsViewStyle.Density.COMFORTABLE,
         isSelected = false,
         onClick = {},
         onLongClick = {},
@@ -278,6 +330,7 @@ private fun AppListItemSplitApkPreview() {
 private fun AppListItemLongVersionNarrowPreview() {
     Box(modifier = Modifier.width(240.dp)) {
         AppListItem(
+            density = AppsViewStyle.Density.COMFORTABLE,
             item = AppsMockDataProvider.createMockAppItem(
                 packageName = "com.superlongvendor.some.deeply.nested.application.identifier",
                 label = "Very Long Application Name",
@@ -290,4 +343,36 @@ private fun AppListItemLongVersionNarrowPreview() {
             showSelection = false,
         )
     }
+}
+
+@Preview2
+@ComposePreviewWrapper(ButlerPreviewWrapper::class)
+@Composable
+private fun AppListItemCompactPreview() {
+    AppListItem(
+        item = AppsMockDataProvider.Presets.disabledAppItem.copy(
+            appSize = AppsMockDataProvider.MockSizes.mb(84),
+        ),
+        density = AppsViewStyle.Density.COMPACT,
+        isSelected = false,
+        onClick = {},
+        onLongClick = {},
+        showSelection = false,
+    )
+}
+
+@Preview2
+@ComposePreviewWrapper(ButlerPreviewWrapper::class)
+@Composable
+private fun AppListItemDetailedPreview() {
+    AppListItem(
+        item = AppsMockDataProvider.Presets.chromeItem.copy(
+            appSize = AppsMockDataProvider.MockSizes.mb(84),
+        ),
+        density = AppsViewStyle.Density.DETAILED,
+        isSelected = false,
+        onClick = {},
+        onLongClick = {},
+        showSelection = false,
+    )
 }

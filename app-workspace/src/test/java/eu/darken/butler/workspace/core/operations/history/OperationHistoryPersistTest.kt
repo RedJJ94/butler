@@ -5,6 +5,7 @@ import androidx.room.Room
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.test.core.app.ApplicationProvider
 import eu.darken.butler.common.files.LocalPath
+import eu.darken.butler.workspace.core.Workspace
 import eu.darken.butler.workspace.core.operations.CompletedOperationSnapshot
 import eu.darken.butler.workspace.core.operations.Operation
 import eu.darken.butler.workspace.core.operations.OperationPathPlan
@@ -155,7 +156,7 @@ class OperationHistoryPersistTest : BaseTest() {
                 state = TestCompletedState(
                     report = TestReport(
                         affectedPaths = listOf(
-                            changeOf(created, Operation.Report.PathChange.Change.ADDED),
+                            changeOf(created, Operation.Report.Paths.PathChange.Change.ADDED),
                         ),
                     ),
                 ),
@@ -165,7 +166,7 @@ class OperationHistoryPersistTest : BaseTest() {
         val stored = database.operationHistoryDao().getById(id)!!
         stored.paths.size shouldBe 1
         stored.paths.single().path shouldBe created.path
-        stored.paths.single().change shouldBe Operation.Report.PathChange.Change.ADDED.name
+        stored.paths.single().change shouldBe Operation.Report.Paths.PathChange.Change.ADDED.name
 
         // The source was only read and the destination folder only gained a child - neither is a change.
         stored.paths.map { it.path } shouldNotContain source.path
@@ -194,6 +195,25 @@ class OperationHistoryPersistTest : BaseTest() {
     }
 
     @Test
+    fun `an Apps origin is stored as APPS`() = runTest {
+        val workspaceId = Workspace.Id()
+        val id = persist(
+            testSnapshot(
+                metadata = testMetadata(
+                    operationKind = Operation.Metadata.Kind.INSTALL,
+                    plan = planOver(source),
+                    operationOrigin = Operation.Metadata.Origin.Apps(workspaceId),
+                ),
+                state = TestCompletedState(report = null),
+            )
+        )
+
+        val stored = database.operationHistoryDao().getById(id)!!
+        stored.entry.originType shouldBe HistoryEntry.OriginType.APPS.name
+        stored.entry.originWorkspaceId shouldBe workspaceId.longTag
+    }
+
+    @Test
     fun `the scope index keeps sources, destinations and their parents`() = runTest {
         val id = persist(
             testSnapshot(
@@ -204,7 +224,7 @@ class OperationHistoryPersistTest : BaseTest() {
                 state = TestCompletedState(
                     report = TestReport(
                         affectedPaths = listOf(
-                            changeOf(created, Operation.Report.PathChange.Change.ADDED),
+                            changeOf(created, Operation.Report.Paths.PathChange.Change.ADDED),
                         ),
                     ),
                 ),
@@ -280,7 +300,7 @@ class OperationHistoryPersistTest : BaseTest() {
                 state = TestCompletedState(
                     report = TestReport(
                         affectedPaths = reported.map {
-                            changeOf(it, Operation.Report.PathChange.Change.ADDED)
+                            changeOf(it, Operation.Report.Paths.PathChange.Change.ADDED)
                         },
                         subjectPath = reported.first(),
                     ),
@@ -311,7 +331,7 @@ class OperationHistoryPersistTest : BaseTest() {
                 state = TestCompletedState(
                     report = TestReport(
                         affectedPaths = directories.map {
-                            changeOf(it, Operation.Report.PathChange.Change.REMOVED)
+                            changeOf(it, Operation.Report.Paths.PathChange.Change.REMOVED)
                         },
                     ),
                 ),
@@ -364,8 +384,8 @@ class OperationHistoryPersistTest : BaseTest() {
                 state = TestCompletedState(
                     report = TestReport(
                         affectedPaths = listOf(
-                            changeOf(savedA, Operation.Report.PathChange.Change.ADDED),
-                            changeOf(savedB, Operation.Report.PathChange.Change.ADDED),
+                            changeOf(savedA, Operation.Report.Paths.PathChange.Change.ADDED),
+                            changeOf(savedB, Operation.Report.Paths.PathChange.Change.ADDED),
                         ),
                     ),
                 ),
@@ -413,7 +433,7 @@ class OperationHistoryPersistTest : BaseTest() {
                 state = TestCompletedState(
                     report = TestReport(
                         affectedPaths = listOf(
-                            changeOf(archived, Operation.Report.PathChange.Change.ADDED),
+                            changeOf(archived, Operation.Report.Paths.PathChange.Change.ADDED),
                         ),
                     ),
                 ),
@@ -483,7 +503,7 @@ class OperationHistoryPersistTest : BaseTest() {
         primaryPathOf(
             labelSnapshot(
                 TestReport(
-                    affectedPaths = listOf(changeOf(firstReported, Operation.Report.PathChange.Change.ADDED)),
+                    affectedPaths = listOf(changeOf(firstReported, Operation.Report.Paths.PathChange.Change.ADDED)),
                     subjectPath = subject,
                 ),
             )
@@ -495,7 +515,7 @@ class OperationHistoryPersistTest : BaseTest() {
         primaryPathOf(
             labelSnapshot(
                 TestReport(
-                    affectedPaths = listOf(changeOf(firstReported, Operation.Report.PathChange.Change.ADDED)),
+                    affectedPaths = listOf(changeOf(firstReported, Operation.Report.Paths.PathChange.Change.ADDED)),
                     subjectPath = null,
                 ),
             )
@@ -512,7 +532,7 @@ class OperationHistoryPersistTest : BaseTest() {
         primaryPathOf(
             labelSnapshot(
                 report = TestReport(
-                    affectedPaths = listOf(changeOf(firstReported, Operation.Report.PathChange.Change.ADDED)),
+                    affectedPaths = listOf(changeOf(firstReported, Operation.Report.Paths.PathChange.Change.ADDED)),
                     subjectPath = subject,
                     partialErrorCount = 1,
                 ),
@@ -535,8 +555,8 @@ class OperationHistoryPersistTest : BaseTest() {
                     report = TestReport(
                         // Post-order removal: the folder is the last change, not the first.
                         affectedPaths = listOf(
-                            changeOf(descendant, Operation.Report.PathChange.Change.REMOVED),
-                            changeOf(folder, Operation.Report.PathChange.Change.REMOVED),
+                            changeOf(descendant, Operation.Report.Paths.PathChange.Change.REMOVED),
+                            changeOf(folder, Operation.Report.Paths.PathChange.Change.REMOVED),
                         ),
                         subjectPath = folder,
                     ),

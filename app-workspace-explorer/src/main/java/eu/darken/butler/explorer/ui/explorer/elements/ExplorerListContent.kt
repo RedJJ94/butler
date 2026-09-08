@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.Composable
@@ -28,6 +29,7 @@ import eu.darken.butler.explorer.ui.explorer.dragselect.explorerDragSelectItems
 import eu.darken.butler.explorer.ui.explorer.dragselect.explorerDragSelectKeys
 import eu.darken.butler.explorer.ui.explorer.ExplorerWorkspaceViewModel
 import eu.darken.butler.explorer.ui.explorer.items.ExplorerItemRenderer
+import eu.darken.butler.explorer.ui.explorer.items.listGap
 import eu.darken.butler.explorer.ui.explorer.preview.MockDataProvider
 import eu.darken.butler.workspace.contracts.dnd.WorkspaceDragPayload
 import eu.darken.butler.workspace.ui.common.WorkspacePaddings
@@ -59,7 +61,7 @@ internal fun ExplorerListContent(
             onSelectionChange = { ids -> vm?.setSelection(explorerDragSelectItems(state, ids)) },
             enabled = { id -> explorerDragSelectClaims(state, id, dragPayloadFactory) },
         ),
-        verticalArrangement = Arrangement.spacedBy(WorkspacePaddings.ListGapDense),
+        verticalArrangement = Arrangement.spacedBy(state.viewStyle.density.listGap),
         contentPadding = contentPadding,
     ) {
         if (state.items == null) {
@@ -108,11 +110,12 @@ internal fun ExplorerListContent(
                 }
             }
         } else {
-            items(
+            val itemKeys = state.items.uniqueItemKeys()
+            itemsIndexed(
                 items = state.items,
-                key = { it.id },
-                contentType = ExplorerItem::contentType,
-            ) { item ->
+                key = { index, _ -> itemKeys[index] },
+                contentType = { _, item -> item.contentType() },
+            ) { _, item ->
                 ExplorerItemRenderer(
                     item = item,
                     viewStyle = state.viewStyle,

@@ -54,10 +54,38 @@ interface Operation {
          * What the operation set out to do, in paths: its targets, an optional destination, and the
          * per-consumer views ([OperationPathPlan.scopePaths], [OperationPathPlan.representativePath])
          * derived from them. Captured at submit time so failed/cancelled ops are still queryable by
-         * path scope, even when [Report.affectedPaths] is null/empty (because nothing was actually
+         * path scope, even when [Report.Paths.affectedPaths] is null/empty (because nothing was actually
          * completed). Persistence stores the union of planned + actually-affected paths.
          */
         val pathPlan: OperationPathPlan? get() = null
+
+        /**
+         * Whether the USER may ask for this operation to stop: the operations bar/sheet cancel
+         * button, the notification's Cancel action, and [OperationsManager.cancel] itself.
+         * False for work that cannot be interrupted once dispatched, e.g. a blocking IPC call whose
+         * peer keeps going regardless.
+         *
+         * Independent of [closePolicy]: this is about the user asking, that one is about the owner
+         * workspace going away.
+         */
+        val isCancellable: Boolean get() = true
+
+        val closePolicy: ClosePolicy get() = ClosePolicy.CANCEL_WITH_ORIGIN
+
+        /** What closing the origin workspace does to an unfinished operation. */
+        enum class ClosePolicy {
+            /** Closing the origin workspace cancels the operation and drops its receipt. */
+            CANCEL_WITH_ORIGIN,
+
+            /**
+             * The origin workspace - and any tab whose close would take it down - cannot be closed
+             * while the operation is unfinished: the close is refused and the user is told.
+             *
+             * Never detaches. An operation always keeps the workspace that can show its progress and
+             * answer its [State.Waiting] state.
+             */
+            REQUIRE_ORIGIN,
+        }
 
         enum class Kind { COPY, MOVE, DELETE, RESTORE, CREATE_FOLDER, CREATE_FILE, SAVE, COMPRESS, EXTRACT, INSTALL }
 
@@ -71,6 +99,7 @@ interface Operation {
             data class Saver(override val workspaceId: Workspace.Id) : Origin
             data class Developer(override val workspaceId: Workspace.Id) : Origin
             data class Viewer(override val workspaceId: Workspace.Id) : Origin
+            data class Apps(override val workspaceId: Workspace.Id) : Origin
         }
     }
 
@@ -102,22 +131,15 @@ interface Operation {
         }
     }
 
-    interface Report {
+    /**
+     * What an operation has to say about itself once it finished.
+     *
+     * Sealed so consumers can switch exhaustively over the report SHAPES. [Paths] is the
+     * file-operation shape and is open, because every file operation refines it with its own
+     * counters. Further shapes are added beside it, in this file.
+     */
+    sealed interface Report {
         val summary: CaString
-        val affectedPaths: Collection<PathChange>
-
-        /**
-         * The path this operation was ABOUT, shown as its history row label.
-         *
-         * The conflict-resolved path of what the user selected, or - for operations that fan out -
-         * the container or archive the user acted on. Never a path whose name the user did not
-         * choose: an extraction's entries and a recursive delete's descendants are audit records,
-         * not subjects.
-         *
-         * Null when THIS REPORT cannot name one (nothing completed, or the operation is not
-         * history-eligible). The history then falls back to the path plan's representative path.
-         */
-        val subjectPath: APath<*>?
 
         /**
          * Number of sub-items that DIDN'T complete as intended even though the operation as a whole
@@ -128,18 +150,36 @@ interface Operation {
          */
         val partialErrorCount: Int get() = 0
 
-        data class PathChange(
-            val path: APath<*>,
-            val change: Change,
+        /** The shape of a report about paths: what changed on disk, and what it was about. */
+        interface Paths : Report {
+            val affectedPaths: Collection<PathChange>
+
             /**
-             * For [Change.MOVED]: the source path before the move (i.e., the rename source).
-             * History details show as `previousPath → path`. Null for non-move changes or when
-             * the source isn't tracked.
+             * The path this operation was ABOUT, shown as its history row label.
+             *
+             * The conflict-resolved path of what the user selected, or - for operations that fan out -
+             * the container or archive the user acted on. Never a path whose name the user did not
+             * choose: an extraction's entries and a recursive delete's descendants are audit records,
+             * not subjects.
+             *
+             * Null when THIS REPORT cannot name one (nothing completed, or the operation is not
+             * history-eligible). The history then falls back to the path plan's representative path.
              */
-            val previousPath: APath<*>? = null,
-        ) {
-            enum class Change {
-                ADDED, REMOVED, MODIFIED, TRASHED, MOVED,
+            val subjectPath: APath<*>?
+
+            data class PathChange(
+                val path: APath<*>,
+                val change: Change,
+                /**
+                 * For [Change.MOVED]: the source path before the move (i.e., the rename source).
+                 * History details show as `previousPath → path`. Null for non-move changes or when
+                 * the source isn't tracked.
+                 */
+                val previousPath: APath<*>? = null,
+            ) {
+                enum class Change {
+                    ADDED, REMOVED, MODIFIED, TRASHED, MOVED,
+                }
             }
         }
     }

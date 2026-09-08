@@ -165,7 +165,7 @@ class CalculateSizesOperation @AssistedInject constructor(
                 )
             }
         }
-        override val affectedPaths = emptyList<Operation.Report.PathChange>()
+        override val affectedPaths = emptyList<Operation.Report.Paths.PathChange>()
         override val subjectPath: APath<*> = root
         override val partialErrorCount: Int = errorCount
     }

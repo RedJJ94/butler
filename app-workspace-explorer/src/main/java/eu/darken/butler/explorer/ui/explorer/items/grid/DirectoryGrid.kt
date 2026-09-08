@@ -16,15 +16,18 @@ import androidx.compose.ui.tooling.preview.PreviewWrapper as ComposePreviewWrapp
 import androidx.compose.ui.unit.dp
 import eu.darken.butler.common.compose.ButlerPreviewWrapper
 import eu.darken.butler.common.compose.Preview2
-import eu.darken.butler.common.DateTimeStyle
 import eu.darken.butler.common.files.APath
 import eu.darken.butler.common.formatDateTime
 import eu.darken.butler.explorer.ui.explorer.items.ItemDecorations
 import eu.darken.butler.explorer.ui.explorer.items.SizeProportionBar
 import eu.darken.butler.explorer.ui.explorer.items.directorySizeLabel
 import eu.darken.butler.explorer.R
+import eu.darken.butler.explorer.core.ExplorerViewStyle
 import eu.darken.butler.explorer.core.engine.ExplorerItem
 import eu.darken.butler.explorer.core.sizes.DirectorySize
+import eu.darken.butler.explorer.ui.explorer.items.gridDateStyle
+import eu.darken.butler.explorer.ui.explorer.items.gridIconSize
+import eu.darken.butler.explorer.ui.explorer.items.showsTileMetadata
 import eu.darken.butler.explorer.ui.explorer.preview.MockDataProvider
 import eu.darken.butler.workspace.ui.preview.FolderPreviewCollage
 import eu.darken.butler.workspace.ui.preview.rememberFolderPreviewChildren
@@ -36,6 +39,7 @@ internal val PREVIEWS_ALWAYS_SETTLED: State<Boolean> = mutableStateOf(true)
 internal fun DirectoryGrid(
     modifier: Modifier = Modifier,
     item: ExplorerItem.RegularDirectory,
+    density: ExplorerViewStyle.Density,
     isSelected: Boolean,
     onToggleSelection: () -> Unit,
     onClick: () -> Unit,
@@ -52,10 +56,11 @@ internal fun DirectoryGrid(
         0 -> stringResource(R.string.explorer_file_empty)
         null -> null
         else -> stringResource(R.string.explorer_file_items_count, count)
-    }
+    }.takeIf { density.showsTileMetadata }
     FileGridBase(
         modifier = modifier,
         item = item,
+        density = density,
         isSelected = isSelected,
         onToggleSelection = onToggleSelection,
         onClick = onClick,
@@ -75,12 +80,15 @@ internal fun DirectoryGrid(
                 imageVector = Icons.TwoTone.Folder,
                 contentDescription = stringResource(R.string.explorer_file_folder_content_desc),
                 tint = Color.White,
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(density.gridIconSize)
             )
         },
         primaryText = item.displayName.get(LocalContext.current),
+        // The size is the one figure a compact tile keeps, so it is not gated on tile metadata.
         secondaryText = listOfNotNull(sizeLabel, countLabel).joinToString(" • ").takeIf { it.isNotEmpty() },
-        tertiaryText = item.lookup.modifiedAt?.let { formatDateTime(it, DateTimeStyle.COMPACT) },
+        tertiaryText = item.lookup.modifiedAt
+            ?.takeIf { density.showsTileMetadata }
+            ?.let { formatDateTime(it, density.gridDateStyle) },
         backgroundColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
         bottomContent = sizeFraction?.let { fraction ->
             {
@@ -117,6 +125,35 @@ private fun DirectoryPreviewBackground(
 private fun DirectoryGridPreview() {
     DirectoryGrid(
         item = MockDataProvider.createMockDirectory(),
+        density = ExplorerViewStyle.Density.COMFORTABLE,
+        isSelected = false,
+        onToggleSelection = {},
+        onClick = {},
+        showSelection = false
+    )
+}
+
+@Preview2
+@ComposePreviewWrapper(ButlerPreviewWrapper::class)
+@Composable
+private fun DirectoryGridCompactPreview() {
+    DirectoryGrid(
+        item = MockDataProvider.createMockDirectory(),
+        density = ExplorerViewStyle.Density.COMPACT,
+        isSelected = false,
+        onToggleSelection = {},
+        onClick = {},
+        showSelection = false
+    )
+}
+
+@Preview2
+@ComposePreviewWrapper(ButlerPreviewWrapper::class)
+@Composable
+private fun DirectoryGridDetailedPreview() {
+    DirectoryGrid(
+        item = MockDataProvider.createMockDirectory("A folder with a long name", 12),
+        density = ExplorerViewStyle.Density.DETAILED,
         isSelected = false,
         onToggleSelection = {},
         onClick = {},
@@ -130,6 +167,7 @@ private fun DirectoryGridPreview() {
 private fun DirectoryGridSelectedPreview() {
     DirectoryGrid(
         item = MockDataProvider.createMockDirectory("Downloads", 12),
+        density = ExplorerViewStyle.Density.COMFORTABLE,
         isSelected = true,
         onToggleSelection = {},
         onClick = {},
@@ -147,6 +185,7 @@ private fun DirectoryGridSizedPreview() {
             childCount = 128,
             computedSize = DirectorySize(bytes = MockDataProvider.MockSizes.gb(2), isComplete = true),
         ),
+        density = ExplorerViewStyle.Density.COMFORTABLE,
         isSelected = false,
         onToggleSelection = {},
         onClick = {},
@@ -165,6 +204,7 @@ private fun DirectoryGridPartialSizePreview() {
             childCount = 4,
             computedSize = DirectorySize(bytes = MockDataProvider.MockSizes.mb(512), isComplete = false),
         ),
+        density = ExplorerViewStyle.Density.COMFORTABLE,
         isSelected = false,
         onToggleSelection = {},
         onClick = {},
@@ -179,6 +219,7 @@ private fun DirectoryGridPartialSizePreview() {
 private fun DirectoryGridHighlightedPreview() {
     DirectoryGrid(
         item = MockDataProvider.createMockDirectory("NewFolder", 0),
+        density = ExplorerViewStyle.Density.COMFORTABLE,
         isSelected = false,
         onToggleSelection = {},
         onClick = {},

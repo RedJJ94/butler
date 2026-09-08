@@ -1089,8 +1089,8 @@ class ExplorerWorkspaceViewModel @AssistedInject constructor(
                     )
                 )
             }
-            is ExplorerActionBarItem.Common.UpdateViewStyle -> {
-                viewSettings.updateViewStyle(action.viewStyle)
+            is ExplorerActionBarItem.Common.ViewOptions -> {
+                dialogs.show(ExplorerDialogState.EditViewStyle)
             }
             is ExplorerActionBarItem.Common.Refresh -> {
                 if (selection.selectedItems.value.isNotEmpty()) {
@@ -1328,7 +1328,7 @@ class ExplorerWorkspaceViewModel @AssistedInject constructor(
                 ExplorerCommand.Extract(archive = archive, destinationDir = destinationDir, entries = null)
             )
             if (completed.error == null) {
-                completed.report?.affectedPaths?.map { it.path }?.let { revealItems(it) }
+                (completed.report as? Operation.Report.Paths)?.affectedPaths?.map { it.path }?.let { revealItems(it) }
             }
         }
     }
@@ -1378,7 +1378,7 @@ class ExplorerWorkspaceViewModel @AssistedInject constructor(
                 ExplorerCommand.DownloadLocalCopy(source = container, destinationDir = destinationDir),
             )
             if (completed.error == null) {
-                completed.report?.affectedPaths?.firstOrNull()?.path?.let { copied ->
+                (completed.report as? Operation.Report.Paths)?.affectedPaths?.firstOrNull()?.path?.let { copied ->
                     getWorkspace().navigate(
                         ExplorerNavigation.Target.Directory(ArchivePath(container = copied, segments = emptyList())),
                     )
@@ -1454,7 +1454,7 @@ class ExplorerWorkspaceViewModel @AssistedInject constructor(
     private suspend fun executeCompress(command: ExplorerCommand.Compress) {
         val completed = getWorkspace().execute(command)
         if (completed.error == null) {
-            completed.report?.affectedPaths?.map { it.path }?.let { revealItems(it) }
+            (completed.report as? Operation.Report.Paths)?.affectedPaths?.map { it.path }?.let { revealItems(it) }
         }
     }
 
@@ -1549,8 +1549,8 @@ class ExplorerWorkspaceViewModel @AssistedInject constructor(
 
             // Reveal the newly created item on success
             if (completed.error == null) {
-                val createdPath = completed.report?.affectedPaths
-                    ?.firstOrNull { it.change == Operation.Report.PathChange.Change.ADDED }
+                val createdPath = (completed.report as? Operation.Report.Paths)?.affectedPaths
+                    ?.firstOrNull { it.change == Operation.Report.Paths.PathChange.Change.ADDED }
                     ?.path
                 createdPath?.let { revealItems(listOf(it)) }
             }
@@ -1858,6 +1858,16 @@ class ExplorerWorkspaceViewModel @AssistedInject constructor(
         )
     }
 
+    fun onViewStyleApplyToTab(style: ExplorerViewStyle) {
+        log(tag) { "onViewStyleApplyToTab($style)" }
+        viewSettings.applyToTab(style)
+    }
+
+    fun onViewStyleSetAsDefault(style: ExplorerViewStyle) {
+        log(tag) { "onViewStyleSetAsDefault($style)" }
+        viewSettings.setAsDefault(style)
+    }
+
     fun resetFilters() = launch {
         log(tag) { "resetFilters()" }
         viewSettings.resetFilters()
@@ -1890,8 +1900,8 @@ class ExplorerWorkspaceViewModel @AssistedInject constructor(
 
                     // Reveal all added items on success (scroll to first, highlight all)
                     if (completed.error == null) {
-                        val addedPaths = completed.report?.affectedPaths
-                            ?.filter { it.change == Operation.Report.PathChange.Change.ADDED || it.change == Operation.Report.PathChange.Change.MOVED }
+                        val addedPaths = (completed.report as? Operation.Report.Paths)?.affectedPaths
+                            ?.filter { it.change == Operation.Report.Paths.PathChange.Change.ADDED || it.change == Operation.Report.Paths.PathChange.Change.MOVED }
                             ?.map { it.path }
                             ?: emptyList()
                         revealItems(addedPaths)
@@ -2019,8 +2029,8 @@ class ExplorerWorkspaceViewModel @AssistedInject constructor(
 
         val completed = getWorkspace().execute(command)
         if (completed.error == null) {
-            val addedPaths = completed.report?.affectedPaths
-                ?.filter { it.change == Operation.Report.PathChange.Change.ADDED || it.change == Operation.Report.PathChange.Change.MOVED }
+            val addedPaths = (completed.report as? Operation.Report.Paths)?.affectedPaths
+                ?.filter { it.change == Operation.Report.Paths.PathChange.Change.ADDED || it.change == Operation.Report.Paths.PathChange.Change.MOVED }
                 ?.map { it.path }
                 ?: emptyList()
             // Only the listing that shows the destination can reveal them; for a drop onto some
@@ -2051,8 +2061,8 @@ class ExplorerWorkspaceViewModel @AssistedInject constructor(
                 if (completed.error == null) {
                     log(tag, INFO) { "Created text file: $filename with ${clip.content.length} characters" }
                     // Resolving a name conflict by renaming lands the file somewhere other than filePath.
-                    val createdPath = completed.report?.affectedPaths
-                        ?.firstOrNull { it.change == Operation.Report.PathChange.Change.ADDED }
+                    val createdPath = (completed.report as? Operation.Report.Paths)?.affectedPaths
+                        ?.firstOrNull { it.change == Operation.Report.Paths.PathChange.Change.ADDED }
                         ?.path
                     revealItems(listOfNotNull(createdPath))
                     clipboardRepo.remove(clip.id)

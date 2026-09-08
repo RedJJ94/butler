@@ -70,6 +70,7 @@ class ShizukuManagerTest : BaseTest() {
     )
 
     private fun setShizukuPackage(pkg: String?) {
+        coEvery { shizukuWrapper.getManagerPackages() } returns listOfNotNull(pkg)
         coEvery { shizukuWrapper.getManagerPackage() } returns pkg
     }
 
@@ -216,5 +217,14 @@ class ShizukuManagerTest : BaseTest() {
         val forkPkg = "com.example.shizuku.fork"
         setShizukuPackage(forkPkg)
         runBlocking { mgr.managerIds() } shouldBe setOf(ShizukuManager.PKG_ID, forkPkg.toPkgId())
+    }
+
+    @Test fun `managerIds includes every detected manager package`() {
+        coEvery { shizukuWrapper.getManagerPackages() } returns listOf(
+            "moe.shizuku.privileged.api",
+            "af.shizuku.plus.api",
+        )
+
+        runBlocking { manager().managerIds() } shouldBe setOf(ShizukuManager.PKG_ID, "af.shizuku.plus.api".toPkgId())
     }
 }

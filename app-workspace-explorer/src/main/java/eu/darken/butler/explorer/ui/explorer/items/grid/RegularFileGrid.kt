@@ -17,17 +17,22 @@ import eu.darken.butler.common.compose.ButlerPreviewWrapper
 import eu.darken.butler.common.compose.Preview2
 import eu.darken.butler.common.compose.TintedAsyncImage
 import eu.darken.butler.explorer.ui.explorer.items.ItemDecorations
-import eu.darken.butler.common.DateTimeStyle
 import eu.darken.butler.common.formatDateTime
 import eu.darken.butler.common.formatFileSize
 import eu.darken.butler.explorer.R
+import eu.darken.butler.explorer.core.ExplorerViewStyle
 import eu.darken.butler.explorer.core.engine.ExplorerItem
+import eu.darken.butler.explorer.ui.explorer.items.gridDateStyle
+import eu.darken.butler.explorer.ui.explorer.items.gridIconSize
+import eu.darken.butler.explorer.ui.explorer.items.showsTileMetadata
+import eu.darken.butler.explorer.ui.explorer.items.usesShortFileSize
 import eu.darken.butler.explorer.ui.explorer.preview.MockDataProvider
 
 @Composable
 internal fun RegularFileGrid(
     modifier: Modifier = Modifier,
     item: ExplorerItem.RegularFile,
+    density: ExplorerViewStyle.Density,
     isSelected: Boolean,
     onToggleSelection: () -> Unit,
     onClick: () -> Unit,
@@ -40,6 +45,7 @@ internal fun RegularFileGrid(
     FileGridBase(
         modifier = modifier,
         item = item,
+        density = density,
         isSelected = isSelected,
         onToggleSelection = onToggleSelection,
         onClick = onClick,
@@ -53,12 +59,15 @@ internal fun RegularFileGrid(
                 imageVector = Icons.TwoTone.Description,
                 contentDescription = stringResource(R.string.explorer_file_regular_content_desc),
                 tint = Color.White,
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(density.gridIconSize)
             )
         },
         primaryText = item.displayName.get(LocalContext.current),
-        secondaryText = item.lookup.size?.let { formatFileSize(it) } ?: "?",
-        tertiaryText = item.lookup.modifiedAt?.let { formatDateTime(it, DateTimeStyle.COMPACT) },
+        // The size is the one figure a compact tile keeps, so it is not gated on tile metadata.
+        secondaryText = item.lookup.size?.let { formatFileSize(it, shortFormat = density.usesShortFileSize) } ?: "?",
+        tertiaryText = item.lookup.modifiedAt
+            ?.takeIf { density.showsTileMetadata }
+            ?.let { formatDateTime(it, density.gridDateStyle) },
         previewContent = {
             TintedAsyncImage(
                 model = item.lookup,
@@ -76,6 +85,35 @@ internal fun RegularFileGrid(
 private fun RegularFileGridPreview() {
     RegularFileGrid(
         item = MockDataProvider.createMockRegularFile(),
+        density = ExplorerViewStyle.Density.COMFORTABLE,
+        isSelected = false,
+        onToggleSelection = {},
+        onClick = {},
+        showSelection = false
+    )
+}
+
+@Preview2
+@ComposePreviewWrapper(ButlerPreviewWrapper::class)
+@Composable
+private fun RegularFileGridCompactPreview() {
+    RegularFileGrid(
+        item = MockDataProvider.createMockRegularFile(),
+        density = ExplorerViewStyle.Density.COMPACT,
+        isSelected = false,
+        onToggleSelection = {},
+        onClick = {},
+        showSelection = false
+    )
+}
+
+@Preview2
+@ComposePreviewWrapper(ButlerPreviewWrapper::class)
+@Composable
+private fun RegularFileGridDetailedPreview() {
+    RegularFileGrid(
+        item = MockDataProvider.createMockRegularFile("a_rather_long_file_name_here.txt"),
+        density = ExplorerViewStyle.Density.DETAILED,
         isSelected = false,
         onToggleSelection = {},
         onClick = {},
@@ -89,6 +127,7 @@ private fun RegularFileGridPreview() {
 private fun RegularFileGridSelectedPreview() {
     RegularFileGrid(
         item = MockDataProvider.createMockRegularFile("config.json"),
+        density = ExplorerViewStyle.Density.COMFORTABLE,
         isSelected = true,
         onToggleSelection = {},
         onClick = {},
@@ -102,6 +141,7 @@ private fun RegularFileGridSelectedPreview() {
 private fun RegularFileGridHighlightedPreview() {
     RegularFileGrid(
         item = MockDataProvider.createMockRegularFile("new_file.txt"),
+        density = ExplorerViewStyle.Density.COMFORTABLE,
         isSelected = false,
         onToggleSelection = {},
         onClick = {},

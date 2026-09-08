@@ -62,8 +62,8 @@ class ShizukuManager @Inject constructor(
         }
         .replayingShare(appScope)
 
-    // The reference package plus, if a fork under a different package name is installed, its package too.
-    suspend fun managerIds(): Set<Pkg.Id> = setOf(PKG_ID) + listOfNotNull(getManagerId())
+    // The reference package plus every installed app that declares a Shizuku manager permission.
+    suspend fun managerIds(): Set<Pkg.Id> = setOf(PKG_ID) + shizukuWrapper.getManagerPackages().map { it.toPkgId() }
 
     val permissionGrantEvents: Flow<ShizukuWrapper.ShizukuPermissionRequest> = shizukuWrapper.permissionGrantEvents
         .setupCommonEventHandlers(TAG) { "grantEvents" }

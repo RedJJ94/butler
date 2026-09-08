@@ -45,8 +45,11 @@ import eu.darken.butler.common.compose.asComposable
 import eu.darken.butler.common.files.APath
 import eu.darken.butler.common.files.APathLookup
 import eu.darken.butler.common.files.metadata.FileType
+import eu.darken.butler.common.DateTimeStyle
+import eu.darken.butler.common.formatDateTime
 import eu.darken.butler.common.formatFileSize
 import eu.darken.butler.searcher.core.SearchItem
+import eu.darken.butler.searcher.core.SearcherViewStyle
 import eu.darken.butler.searcher.ui.search.preview.SearcherMockDataProvider
 import eu.darken.butler.workspace.ui.preview.FolderPreviewCollage
 import eu.darken.butler.workspace.ui.preview.rememberFolderPreviewChildren
@@ -59,6 +62,7 @@ private val PREVIEWS_ALWAYS_SETTLED: State<Boolean> = mutableStateOf(true)
 @Composable
 fun SelectableFileGrid(
     result: SearchItem,
+    density: SearcherViewStyle.Density,
     isSelected: Boolean,
     isSelectionMode: Boolean,
     onClick: () -> Unit,
@@ -77,8 +81,10 @@ fun SelectableFileGrid(
     val parentPath = parentCaString?.asComposable()
 
     val context = LocalContext.current
-    val sizeText = remember(result.size, context) {
-        result.size?.let { formatFileSize(context = context, bytes = it) }
+    val sizeText = remember(result.size, context, density) {
+        result.size?.let {
+            formatFileSize(context = context, bytes = it, shortFormat = density.usesShortFileSize)
+        }
     }
 
     val shape = RoundedCornerShape(4.dp)
@@ -139,14 +145,15 @@ fun SelectableFileGrid(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Icon or checkbox in top-left
+                val checkboxSize = maxOf(density.gridIconSize, 20.dp)
                 Box(
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(if (isSelectionMode) checkboxSize else density.gridIconSize)
                 ) {
                     if (isSelectionMode) {
                         Checkbox(
                             checked = isSelected,
                             onCheckedChange = { onClick() },
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(checkboxSize)
                         )
                     } else {
                         // Use Material TwoTone icons like Explorer
@@ -155,13 +162,13 @@ fun SelectableFileGrid(
                                 imageVector = Icons.TwoTone.Folder,
                                 contentDescription = "Folder",
                                 tint = MaterialTheme.colorScheme.onScrim,
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(density.gridIconSize)
                             )
                             else -> Icon(
                                 imageVector = Icons.TwoTone.Description,
                                 contentDescription = "File",
                                 tint = MaterialTheme.colorScheme.onScrim,
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(density.gridIconSize)
                             )
                         }
                     }
@@ -169,7 +176,7 @@ fun SelectableFileGrid(
 
                 Spacer(modifier = Modifier.width(4.dp))
 
-                // File size in top-right
+                // File size in top-right; the one figure a compact tile still carries
                 sizeText?.let { size ->
                     Text(
                         text = size,
@@ -200,12 +207,14 @@ fun SelectableFileGrid(
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onScrim,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                        // Middle, not end: a tile is narrow and the extension is what a name
+                        // cut at the end loses first.
+                        overflow = TextOverflow.MiddleEllipsis,
                         modifier = Modifier.fillMaxWidth()
                     )
 
                     // Tertiary: Parent path
-                    if (parentPath != null) {
+                    if (parentPath != null && density.showsTileMetadata) {
                         Text(
                             text = parentPath,
                             style = MaterialTheme.typography.labelSmall,
@@ -214,6 +223,20 @@ fun SelectableFileGrid(
                             overflow = TextOverflow.MiddleEllipsis,
                             modifier = Modifier.fillMaxWidth()
                         )
+                    }
+
+                    // Detailed adds the modified time, so no two steps render identically.
+                    if (density == SearcherViewStyle.Density.DETAILED) {
+                        result.modifiedAt?.let { modifiedAt ->
+                            Text(
+                                text = formatDateTime(modifiedAt, DateTimeStyle.COMPACT),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onScrim.copy(alpha = 0.7f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
                     }
                 }
             }
@@ -262,6 +285,7 @@ private fun SelectableFileGridPreview() {
     PreviewWrapper {
         SelectableFileGrid(
             result = searchResult,
+            density = SearcherViewStyle.Density.COMFORTABLE,
             isSelected = false,
             isSelectionMode = false,
             onClick = {},
@@ -282,6 +306,7 @@ private fun SelectableFileGridSelectedPreview() {
     PreviewWrapper {
         SelectableFileGrid(
             result = searchResult,
+            density = SearcherViewStyle.Density.COMFORTABLE,
             isSelected = true,
             isSelectionMode = true,
             onClick = {},
@@ -300,6 +325,39 @@ private fun SelectableFileGridDirectoryPreview() {
     PreviewWrapper {
         SelectableFileGrid(
             result = searchResult,
+            density = SearcherViewStyle.Density.COMFORTABLE,
+            isSelected = false,
+            isSelectionMode = false,
+            onClick = {},
+            onLongPress = {}
+        )
+    }
+}
+
+@Preview2
+@ComposePreviewWrapper(ButlerPreviewWrapper::class)
+@Composable
+private fun SelectableFileGridCompactPreview() {
+    PreviewWrapper {
+        SelectableFileGrid(
+            result = SearcherMockDataProvider.createMockTextFile(name = "example.txt", sizeKB = 1, hoursAgo = 1),
+            density = SearcherViewStyle.Density.COMPACT,
+            isSelected = false,
+            isSelectionMode = false,
+            onClick = {},
+            onLongPress = {}
+        )
+    }
+}
+
+@Preview2
+@ComposePreviewWrapper(ButlerPreviewWrapper::class)
+@Composable
+private fun SelectableFileGridDetailedPreview() {
+    PreviewWrapper {
+        SelectableFileGrid(
+            result = SearcherMockDataProvider.createMockTextFile(name = "example.txt", sizeKB = 1, hoursAgo = 1),
+            density = SearcherViewStyle.Density.DETAILED,
             isSelected = false,
             isSelectionMode = false,
             onClick = {},

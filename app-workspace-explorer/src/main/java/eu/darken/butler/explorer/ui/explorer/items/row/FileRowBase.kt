@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -24,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -32,9 +34,45 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import eu.darken.butler.common.isProblematicInvisible
+import eu.darken.butler.explorer.core.ExplorerViewStyle
 import eu.darken.butler.explorer.core.engine.ExplorerItem
 import eu.darken.butler.explorer.ui.explorer.items.ItemDecorations
 import eu.darken.butler.explorer.ui.explorer.items.LeadingIconSlot
+import eu.darken.butler.explorer.ui.explorer.items.rowBadgeSize
+import eu.darken.butler.explorer.ui.explorer.items.rowIconGap
+import eu.darken.butler.explorer.ui.explorer.items.rowIconSize
+import eu.darken.butler.explorer.ui.explorer.items.rowPadding
+import eu.darken.butler.explorer.ui.explorer.items.rowVerticalPadding
+
+@Composable
+private fun TertiaryMeta(
+    modifier: Modifier = Modifier,
+    icon: RowMetaIcon?,
+    text: String,
+    color: Color,
+) {
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        if (icon != null) {
+            Icon(
+                imageVector = icon.icon,
+                contentDescription = icon.contentDescription,
+                modifier = Modifier.size(14.dp),
+                tint = color,
+            )
+        }
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            color = color,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
 
 private fun String.withProblematicCharsUnderlined(color: Color): AnnotatedString {
     if (this.trim { it.isProblematicInvisible() } == this) return AnnotatedString(this)
@@ -71,10 +109,21 @@ private fun String.withProblematicCharsUnderlined(color: Color): AnnotatedString
     }
 }
 
+/**
+ * A glyph standing in for a field label on the tertiary line, where "Created 31.12.2026 13:49:07"
+ * and its modification counterpart do not both fit. [contentDescription] carries the label that
+ * the glyph replaces, so the field is still named to assistive tech.
+ */
+internal data class RowMetaIcon(
+    val icon: ImageVector,
+    val contentDescription: String,
+)
+
 @Composable
 internal fun FileRowBase(
     modifier: Modifier = Modifier,
     item: ExplorerItem,
+    density: ExplorerViewStyle.Density,
     isSelected: Boolean,
     onToggleSelection: () -> Unit,
     onClick: () -> Unit,
@@ -88,7 +137,9 @@ internal fun FileRowBase(
     secondaryText: String? = null,
     secondaryEndText: String? = null,
     tertiaryText: String? = null,
+    tertiaryIcon: RowMetaIcon? = null,
     tertiaryEndText: String? = null,
+    tertiaryEndIcon: RowMetaIcon? = null,
     /** Overrides the muted default, for a tertiary line that carries a state worth noticing. */
     tertiaryColor: Color? = null,
     trailingContent: (@Composable () -> Unit)? = null,
@@ -128,7 +179,7 @@ internal fun FileRowBase(
                     )
                 } else Modifier
             )
-            .padding(8.dp),
+            .padding(horizontal = density.rowPadding, vertical = density.rowVerticalPadding),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Leading content area - shows either checkbox or decorated icon. Decorations
@@ -136,7 +187,7 @@ internal fun FileRowBase(
         // checkbox and intentionally hides decorations.
         if (showSelection) {
             Box(
-                modifier = Modifier.size(32.dp),
+                modifier = Modifier.size(density.rowIconSize),
                 contentAlignment = Alignment.Center,
             ) {
                 Checkbox(
@@ -146,14 +197,15 @@ internal fun FileRowBase(
             }
         } else {
             LeadingIconSlot(
-                modifier = Modifier.size(32.dp),
+                modifier = Modifier.size(density.rowIconSize),
                 decorations = decorations,
+                badgeSize = density.rowBadgeSize,
             ) {
                 leadingContent()
             }
         }
 
-        Spacer(modifier = Modifier.width(8.dp))
+        Spacer(modifier = Modifier.width(density.rowIconGap))
 
         // File information
         Column(
@@ -199,26 +251,26 @@ internal fun FileRowBase(
             }
 
             if (tertiaryText != null || tertiaryEndText != null) {
+                val mutedColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = tertiaryText.orEmpty(),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = tertiaryColor ?: MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                    TertiaryMeta(
                         modifier = Modifier.weight(1f),
+                        icon = tertiaryIcon,
+                        text = tertiaryText.orEmpty(),
+                        color = tertiaryColor ?: mutedColor,
                     )
 
                     if (tertiaryEndText != null) {
                         if (!tertiaryText.isNullOrBlank()) {
                             Spacer(modifier = Modifier.width(8.dp))
                         }
-                        Text(
+                        TertiaryMeta(
+                            // Weighted so two timestamps share the line instead of the end one
+                            // taking its full width and leaving the other without a date.
+                            modifier = Modifier.weight(1f, fill = false),
+                            icon = tertiaryEndIcon,
                             text = tertiaryEndText,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
+                            color = mutedColor,
                         )
                     }
                 }

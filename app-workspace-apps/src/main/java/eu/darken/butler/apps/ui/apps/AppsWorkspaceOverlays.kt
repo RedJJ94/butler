@@ -66,10 +66,13 @@ fun AppsWorkspaceOverlays(
     AppsDialogHost(
         dialogState = state.dialogState,
         filterConfig = state.filterConfig,
+        viewStyle = state.viewStyle,
         onDismiss = { onPageAction(AppsPageAction.Dialog.Dismiss) },
         onAction = { onPageAction(AppsPageAction.ActionBarClick(it)) },
         onFilterApply = { onPageAction(AppsPageAction.Dialog.ApplyFilter(it)) },
         onSortApply = { onPageAction(AppsPageAction.Dialog.ApplySort(it)) },
+        onViewStyleApplyToTab = { onPageAction(AppsPageAction.ViewStyle.ApplyToTab(it)) },
+        onViewStyleSetAsDefault = { onPageAction(AppsPageAction.ViewStyle.SetAsDefault(it)) },
         onConfirmEnable = { onPageAction(AppsPageAction.Dialog.ConfirmEnable(it)) },
         onConfirmDisable = { onPageAction(AppsPageAction.Dialog.ConfirmDisable(it)) },
         onConfirmUninstall = { onPageAction(AppsPageAction.Dialog.ConfirmUninstall(it)) },

@@ -9,6 +9,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.PreviewWrapper as ComposePreviewWrapper
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.twotone.NoteAdd
+import androidx.compose.material.icons.twotone.DriveFileRenameOutline
 import eu.darken.butler.common.compose.ButlerPreviewWrapper
 import eu.darken.butler.common.compose.Preview2
 import eu.darken.butler.common.compose.TintedAsyncImage
@@ -18,13 +21,20 @@ import eu.darken.butler.common.formatDateTime
 import eu.darken.butler.common.formatFileSize
 import eu.darken.butler.common.isProblematicInvisible
 import eu.darken.butler.explorer.R
+import eu.darken.butler.explorer.core.ExplorerViewStyle
 import eu.darken.butler.explorer.core.engine.ExplorerItem
+import eu.darken.butler.explorer.ui.explorer.items.rowDateStyle
+import eu.darken.butler.explorer.ui.explorer.items.showsDatesOnOwnLine
+import eu.darken.butler.explorer.ui.explorer.items.rowIconSize
+import eu.darken.butler.explorer.ui.explorer.items.showsFileAttributes
+import eu.darken.butler.explorer.ui.explorer.items.usesShortFileSize
 import eu.darken.butler.explorer.ui.explorer.preview.MockDataProvider
 
 @Composable
 internal fun RegularFileRow(
     modifier: Modifier = Modifier,
     item: ExplorerItem.RegularFile,
+    density: ExplorerViewStyle.Density,
     isSelected: Boolean,
     onToggleSelection: () -> Unit,
     onClick: () -> Unit,
@@ -39,6 +49,7 @@ internal fun RegularFileRow(
 
     FileRowBase(
         item = item,
+        density = density,
         isSelected = isSelected,
         onToggleSelection = onToggleSelection,
         onClick = onClick,
@@ -52,18 +63,44 @@ internal fun RegularFileRow(
             TintedAsyncImage(
                 model = item.lookup,
                 contentDescription = stringResource(R.string.explorer_file_regular_content_desc),
-                modifier = Modifier.size(32.dp),
+                modifier = Modifier.size(density.rowIconSize),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         },
         primaryText = primaryText,
         hasProblematicChars = hasProblematicChars,
         secondaryText = listOfNotNull(
-            item.lookup.size?.let { formatFileSize(it) } ?: "?",
-            item.permissions?.toReadableString(),
-            item.ownership?.let { "${it.userName ?: it.userId} | ${it.groupName ?: it.groupId}" },
+            item.lookup.size?.let { formatFileSize(it, shortFormat = density.usesShortFileSize) } ?: "?",
+            item.permissions?.toReadableString().takeIf { density.showsFileAttributes },
+            item.ownership
+                ?.let { "${it.userName ?: it.userId} | ${it.groupName ?: it.groupId}" }
+                .takeIf { density.showsFileAttributes },
         ).joinToString(" • ").takeIf { it.isNotEmpty() },
-        secondaryEndText = item.lookup.modifiedAt?.let { formatDateTime(it, DateTimeStyle.FULL) },
+        secondaryEndText = item.lookup.modifiedAt
+            ?.takeUnless { density.showsDatesOnOwnLine }
+            ?.let { formatDateTime(it, density.rowDateStyle) },
+        tertiaryText = item.createdAt
+            ?.takeIf { density.showsDatesOnOwnLine }
+            ?.let { formatDateTime(it, DateTimeStyle.FULL) },
+        tertiaryIcon = item.createdAt
+            ?.takeIf { density.showsDatesOnOwnLine }
+            ?.let {
+                RowMetaIcon(
+                    icon = Icons.AutoMirrored.TwoTone.NoteAdd,
+                    contentDescription = stringResource(R.string.explorer_view_detail_created_label),
+                )
+            },
+        tertiaryEndText = item.lookup.modifiedAt
+            ?.takeIf { density.showsDatesOnOwnLine }
+            ?.let { formatDateTime(it, DateTimeStyle.FULL) },
+        tertiaryEndIcon = item.lookup.modifiedAt
+            ?.takeIf { density.showsDatesOnOwnLine }
+            ?.let {
+                RowMetaIcon(
+                    icon = Icons.TwoTone.DriveFileRenameOutline,
+                    contentDescription = stringResource(R.string.explorer_view_detail_modified_label),
+                )
+            },
     )
 }
 
@@ -73,6 +110,7 @@ internal fun RegularFileRow(
 private fun RegularFileRowPreview() {
     RegularFileRow(
         item = MockDataProvider.createMockRegularFile(),
+        density = ExplorerViewStyle.Density.COMFORTABLE,
         isSelected = false,
         onToggleSelection = {},
         onClick = {},
@@ -85,6 +123,7 @@ private fun RegularFileRowPreview() {
 @Composable
 private fun RegularFileRowNarrowPreview() {
     RegularFileRow(
+        density = ExplorerViewStyle.Density.COMFORTABLE,
         modifier = Modifier.width(220.dp),
         item = MockDataProvider.createMockRegularFile(
             name = "quarterly_report_final.pdf",
@@ -100,9 +139,38 @@ private fun RegularFileRowNarrowPreview() {
 @Preview2
 @ComposePreviewWrapper(ButlerPreviewWrapper::class)
 @Composable
+private fun RegularFileRowCompactPreview() {
+    RegularFileRow(
+        item = MockDataProvider.createMockRegularFile(),
+        density = ExplorerViewStyle.Density.COMPACT,
+        isSelected = false,
+        onToggleSelection = {},
+        onClick = {},
+        showSelection = false
+    )
+}
+
+@Preview2
+@ComposePreviewWrapper(ButlerPreviewWrapper::class)
+@Composable
+private fun RegularFileRowDetailedPreview() {
+    RegularFileRow(
+        item = MockDataProvider.createMockRegularFile(),
+        density = ExplorerViewStyle.Density.DETAILED,
+        isSelected = false,
+        onToggleSelection = {},
+        onClick = {},
+        showSelection = false
+    )
+}
+
+@Preview2
+@ComposePreviewWrapper(ButlerPreviewWrapper::class)
+@Composable
 private fun RegularFileRowSelectedPreview() {
     RegularFileRow(
         item = MockDataProvider.createMockRegularFile("config.json"),
+        density = ExplorerViewStyle.Density.COMFORTABLE,
         isSelected = true,
         onToggleSelection = {},
         onClick = {},
@@ -116,6 +184,7 @@ private fun RegularFileRowSelectedPreview() {
 private fun RegularFileRowLeadingWhitespacePreview() {
     RegularFileRow(
         item = MockDataProvider.createMockRegularFile(" document.txt"),
+        density = ExplorerViewStyle.Density.COMFORTABLE,
         isSelected = false,
         onToggleSelection = {},
         onClick = {},
@@ -129,6 +198,7 @@ private fun RegularFileRowLeadingWhitespacePreview() {
 private fun RegularFileRowTrailingWhitespaceSelectedPreview() {
     RegularFileRow(
         item = MockDataProvider.createMockRegularFile("report.pdf "),
+        density = ExplorerViewStyle.Density.COMFORTABLE,
         isSelected = true,
         onToggleSelection = {},
         onClick = {},
@@ -142,6 +212,7 @@ private fun RegularFileRowTrailingWhitespaceSelectedPreview() {
 private fun RegularFileRowHighlightedPreview() {
     RegularFileRow(
         item = MockDataProvider.createMockRegularFile("new_file.txt"),
+        density = ExplorerViewStyle.Density.COMFORTABLE,
         isSelected = false,
         onToggleSelection = {},
         onClick = {},

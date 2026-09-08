@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.Composable
@@ -35,6 +36,7 @@ import eu.darken.butler.explorer.ui.explorer.dragselect.explorerDragSelectItems
 import eu.darken.butler.explorer.ui.explorer.dragselect.explorerDragSelectKeys
 import eu.darken.butler.explorer.ui.explorer.ExplorerWorkspaceViewModel
 import eu.darken.butler.explorer.ui.explorer.items.ExplorerItemRenderer
+import eu.darken.butler.explorer.ui.explorer.items.gridMinSize
 import eu.darken.butler.explorer.ui.explorer.preview.MockDataProvider
 import eu.darken.butler.workspace.contracts.dnd.WorkspaceDragPayload
 import eu.darken.butler.workspace.ui.common.WorkspacePaddings
@@ -76,7 +78,7 @@ internal fun ExplorerGridContent(
 
     LazyVerticalGrid(
         state = effectiveGridState,
-        columns = GridCells.Adaptive(minSize = 120.dp),
+        columns = GridCells.Adaptive(minSize = state.viewStyle.density.gridMinSize),
         modifier = modifier.gridDragSelect(
             state = effectiveGridState,
             orderedKeys = { explorerDragSelectKeys(state) },
@@ -137,11 +139,12 @@ internal fun ExplorerGridContent(
                 }
             }
         } else {
-            items(
+            val itemKeys = state.items.uniqueItemKeys()
+            itemsIndexed(
                 items = state.items,
-                key = { it.id },
-                contentType = ExplorerItem::contentType,
-            ) { item ->
+                key = { index, _ -> itemKeys[index] },
+                contentType = { _, item -> item.contentType() },
+            ) { _, item ->
                 ExplorerItemRenderer(
                     item = item,
                     viewStyle = state.viewStyle,
@@ -180,7 +183,7 @@ internal fun ExplorerGridContent(
 private fun ExplorerGridContentPreview() {
     PreviewWrapper {
         ExplorerGridContent(
-            state = MockDataProvider.createReadyState().copy(viewStyle = ExplorerViewStyle.Grid()),
+            state = MockDataProvider.createReadyState().copy(viewStyle = ExplorerViewStyle(mode = ExplorerViewStyle.Mode.GRID)),
             vm = null,
             contentFocusedItem = null,
             gridState = rememberLazyGridState(),

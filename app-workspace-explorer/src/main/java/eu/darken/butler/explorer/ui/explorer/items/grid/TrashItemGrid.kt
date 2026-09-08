@@ -19,18 +19,23 @@ import eu.darken.butler.common.compose.ButlerPreviewWrapper
 import eu.darken.butler.common.compose.Preview2
 import eu.darken.butler.common.compose.PreviewWrapper
 import eu.darken.butler.common.compose.TintedAsyncImage
-import eu.darken.butler.common.DateTimeStyle
 import eu.darken.butler.common.files.extensions.isDirectory
 import eu.darken.butler.common.formatFileSize
 import eu.darken.butler.common.formatSmartTime
 import eu.darken.butler.explorer.R
+import eu.darken.butler.explorer.core.ExplorerViewStyle
 import eu.darken.butler.explorer.core.engine.ExplorerItem
+import eu.darken.butler.explorer.ui.explorer.items.gridDateStyle
+import eu.darken.butler.explorer.ui.explorer.items.gridIconSize
+import eu.darken.butler.explorer.ui.explorer.items.showsTileMetadata
+import eu.darken.butler.explorer.ui.explorer.items.usesShortFileSize
 import eu.darken.butler.explorer.ui.explorer.preview.MockDataProvider
 
 @Composable
 fun TrashItemGrid(
     modifier: Modifier = Modifier,
     item: ExplorerItem.Trash.Root,
+    density: ExplorerViewStyle.Density,
     isSelected: Boolean = false,
     onToggleSelection: () -> Unit = {},
     onClick: () -> Unit = {},
@@ -43,6 +48,7 @@ fun TrashItemGrid(
     FileGridBase(
         modifier = modifier.alpha(if (item.isAvailable) 1f else 0.5f),
         item = item,
+        density = density,
         isSelected = isSelected,
         onToggleSelection = onToggleSelection,
         onClick = onClick,
@@ -53,12 +59,13 @@ fun TrashItemGrid(
                 imageVector = if (isDirectory) Icons.TwoTone.Folder else Icons.TwoTone.Description,
                 contentDescription = stringResource(R.string.explorer_file_folder_content_desc),
                 tint = Color.White,
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(density.gridIconSize),
             )
         },
         primaryText = item.displayName.get(context),
-        secondaryText = item.trashLookup?.size?.let { formatFileSize(it) },
-        tertiaryText = formatSmartTime(item.deletedAt, absoluteStyle = DateTimeStyle.COMPACT),
+        secondaryText = item.trashLookup?.size?.let { formatFileSize(it, shortFormat = density.usesShortFileSize) },
+        tertiaryText = formatSmartTime(item.deletedAt, absoluteStyle = density.gridDateStyle)
+            .takeIf { density.showsTileMetadata },
         previewContent = {
             TintedAsyncImage(
                 model = item.trashLookup ?: item.originalLookup,
@@ -76,6 +83,27 @@ fun TrashItemGrid(
 private fun TrashItemGridPreview() {
     TrashItemGrid(
         item = MockDataProvider.createMockTrashItem(),
+        density = ExplorerViewStyle.Density.COMFORTABLE,
+    )
+}
+
+@Preview2
+@ComposePreviewWrapper(ButlerPreviewWrapper::class)
+@Composable
+private fun TrashItemGridCompactPreview() {
+    TrashItemGrid(
+        item = MockDataProvider.createMockTrashItem(),
+        density = ExplorerViewStyle.Density.COMPACT,
+    )
+}
+
+@Preview2
+@ComposePreviewWrapper(ButlerPreviewWrapper::class)
+@Composable
+private fun TrashItemGridDetailedPreview() {
+    TrashItemGrid(
+        item = MockDataProvider.createMockTrashItem(),
+        density = ExplorerViewStyle.Density.DETAILED,
     )
 }
 
@@ -85,6 +113,7 @@ private fun TrashItemGridPreview() {
 private fun TrashItemGridSelectedPreview() {
     TrashItemGrid(
         item = MockDataProvider.createMockTrashItem("photo.jpg"),
+        density = ExplorerViewStyle.Density.COMFORTABLE,
         isSelected = true,
         showSelection = true,
     )
@@ -96,5 +125,6 @@ private fun TrashItemGridSelectedPreview() {
 private fun TrashItemGridOldPreview() {
     TrashItemGrid(
         item = MockDataProvider.createMockTrashItemOld(),
+        density = ExplorerViewStyle.Density.COMFORTABLE,
     )
 }

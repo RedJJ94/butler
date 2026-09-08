@@ -5,37 +5,31 @@ import kotlinx.parcelize.Parcelize
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
+/**
+ * [mode] is persisted under the wire key `type`, and stored payloads rely on that: renaming it
+ * silently resets the saved mode of every tab and every default, keeping their density.
+ */
 @Serializable
-sealed class AppsViewStyle : Parcelable {
+@Parcelize
+data class AppsViewStyle(
+    @SerialName("type") val mode: Mode = Mode.LIST,
+    @SerialName("density") val density: Density = Density.COMFORTABLE,
+) : Parcelable {
 
     @Serializable
-    @SerialName("list")
-    @Parcelize
-    data class List(
-        @SerialName("density") val density: Density = Density.COMFORTABLE,
-    ) : AppsViewStyle() {
-        @Serializable
-        enum class Density {
-            @SerialName("compact") COMPACT,
-            @SerialName("comfortable") COMFORTABLE,
-        }
+    enum class Mode {
+        @SerialName("list") LIST,
+        @SerialName("grid") GRID,
     }
 
     @Serializable
-    @SerialName("grid")
-    @Parcelize
-    data class Grid(
-        @SerialName("size") val size: GridSize = GridSize.MEDIUM,
-    ) : AppsViewStyle() {
-        @Serializable
-        enum class GridSize {
-            @SerialName("small") SMALL,
-            @SerialName("medium") MEDIUM,
-            @SerialName("large") LARGE,
-        }
+    enum class Density {
+        @SerialName("compact") COMPACT,
+        @SerialName("comfortable") COMFORTABLE,
+        @SerialName("detailed") DETAILED,
     }
 
     companion object {
-        fun default(): AppsViewStyle = List()
+        fun default(): AppsViewStyle = AppsViewStyle()
     }
 }

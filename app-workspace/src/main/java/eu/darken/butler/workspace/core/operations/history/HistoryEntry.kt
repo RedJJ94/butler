@@ -35,12 +35,12 @@ data class HistoryEntry(
      */
     val primaryPath: String? = null,
 ) {
-    enum class OriginType { EXPLORER, SEARCHER, SAVER, DEVELOPER, VIEWER }
+    enum class OriginType { EXPLORER, SEARCHER, SAVER, DEVELOPER, VIEWER, APPS }
 
     data class PathChange(
         val path: String,
         val previousPath: String?,
-        val change: Operation.Report.PathChange.Change,
+        val change: Operation.Report.Paths.PathChange.Change,
     )
 
     companion object {

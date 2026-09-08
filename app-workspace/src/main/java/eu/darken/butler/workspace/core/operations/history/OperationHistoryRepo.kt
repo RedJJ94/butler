@@ -89,6 +89,7 @@ class OperationHistoryRepo @Inject constructor(
             is Operation.Metadata.Origin.Saver -> HistoryEntry.OriginType.SAVER
             is Operation.Metadata.Origin.Developer -> HistoryEntry.OriginType.DEVELOPER
             is Operation.Metadata.Origin.Viewer -> HistoryEntry.OriginType.VIEWER
+            is Operation.Metadata.Origin.Apps -> HistoryEntry.OriginType.APPS
         }
 
         val reportedChanges = collectReportedChanges(state)
@@ -133,7 +134,7 @@ class OperationHistoryRepo @Inject constructor(
             affectedPathsCount = reportedChanges.size,
             partialErrorCount = state.report?.partialErrorCount ?: 0,
             pathsTruncated = reportedChanges.size > MAX_PATHS_PER_OP,
-            primaryPath = state.report?.subjectPath?.userReadablePath?.get(context)
+            primaryPath = (state.report as? Operation.Report.Paths)?.subjectPath?.userReadablePath?.get(context)
                 ?: metadata.pathPlan?.representativePath?.userReadablePath?.get(context),
         )
 
@@ -211,7 +212,7 @@ class OperationHistoryRepo @Inject constructor(
         val seen = mutableSetOf<String>()
         val out = mutableListOf<HistoryEntry.PathChange>()
 
-        state.report?.affectedPaths?.forEach { change ->
+        (state.report as? Operation.Report.Paths)?.affectedPaths?.forEach { change ->
             val pathStr = change.path.userReadablePath.get(context)
             if (seen.add(pathStr)) {
                 out += HistoryEntry.PathChange(
@@ -243,7 +244,7 @@ class OperationHistoryRepo @Inject constructor(
     ): List<String> {
         val candidates = buildList<APath<*>> {
             metadata.pathPlan?.let { addAll(it.allPaths) }
-            state.report?.affectedPaths?.forEach { change ->
+            (state.report as? Operation.Report.Paths)?.affectedPaths?.forEach { change ->
                 add(change.path)
                 change.previousPath?.let { add(it) }
             }
@@ -389,7 +390,7 @@ class OperationHistoryRepo @Inject constructor(
             HistoryEntry.PathChange(
                 path = p.path,
                 previousPath = p.previousPath,
-                change = Operation.Report.PathChange.Change.valueOf(p.change),
+                change = Operation.Report.Paths.PathChange.Change.valueOf(p.change),
             )
         },
     )

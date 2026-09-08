@@ -3,42 +3,30 @@ package eu.darken.butler.explorer.core
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
+/**
+ * [mode] is persisted under the wire key `type`, and stored payloads rely on that: renaming it
+ * silently resets the saved mode of every tab and every default, keeping their density.
+ */
 @Serializable
-sealed class ExplorerViewStyle {
+data class ExplorerViewStyle(
+    @SerialName("type") val mode: Mode = Mode.LIST,
+    @SerialName("density") val density: Density = Density.COMFORTABLE,
+) {
 
     @Serializable
-    @SerialName("list")
-    data class List(
-        @SerialName("density") val density: Density = Density.COMFORTABLE,
-    ) : ExplorerViewStyle() {
-        @Serializable
-        enum class Density {
-            @SerialName("compact") COMPACT,
-            @SerialName("comfortable") COMFORTABLE,
-            @SerialName("detailed") DETAILED,
-        }
+    enum class Mode {
+        @SerialName("list") LIST,
+        @SerialName("grid") GRID,
     }
 
     @Serializable
-    @SerialName("grid")
-    data class Grid(
-        @SerialName("size") val size: GridSize = GridSize.MEDIUM,
-    ) : ExplorerViewStyle() {
-        @Serializable
-        enum class GridSize {
-            @SerialName("small") SMALL,      // 90dp min width
-            @SerialName("medium") MEDIUM,    // 120dp min width
-            @SerialName("large") LARGE,      // 160dp min width
-        }
+    enum class Density {
+        @SerialName("compact") COMPACT,
+        @SerialName("comfortable") COMFORTABLE,
+        @SerialName("detailed") DETAILED,
     }
 
     companion object {
-        fun default(): ExplorerViewStyle = List()
+        fun default(): ExplorerViewStyle = ExplorerViewStyle()
     }
-}
-
-/** The style the view-style action switches to. */
-fun ExplorerViewStyle.toggled(): ExplorerViewStyle = when (this) {
-    is ExplorerViewStyle.List -> ExplorerViewStyle.Grid()
-    is ExplorerViewStyle.Grid -> ExplorerViewStyle.List()
 }

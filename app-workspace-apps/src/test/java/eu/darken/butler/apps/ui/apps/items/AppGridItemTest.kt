@@ -5,8 +5,10 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.core.app.ApplicationProvider
+import eu.darken.butler.apps.R
 import eu.darken.butler.apps.ui.apps.preview.AppsMockDataProvider
 import eu.darken.butler.common.compose.PreviewWrapper
+import eu.darken.butler.workspace.contracts.apps.AppsViewStyle
 import eu.darken.butler.common.formatFileSize
 import org.junit.Test
 import testhelpers.ComposeTest
@@ -15,17 +17,19 @@ class AppGridItemTest : ComposeTest() {
 
     private val context = ApplicationProvider.getApplicationContext<Context>()
 
+    private val versionedItem = AppsMockDataProvider.createMockAppItem(
+        packageName = "com.android.chrome",
+        label = "Chrome",
+        versionName = "120.0.6099",
+    )
+
     @Test
-    fun `tile shows label and package name but not the version`() {
-        val item = AppsMockDataProvider.createMockAppItem(
-            packageName = "com.android.chrome",
-            label = "Chrome",
-            versionName = "120.0.6099",
-        )
+    fun `a comfortable tile shows label and package name but not the version`() {
         composeTestRule.setContent {
             PreviewWrapper {
                 AppGridItem(
-                    item = item,
+                    item = versionedItem,
+                    density = AppsViewStyle.Density.COMFORTABLE,
                     isSelected = false,
                     onClick = {},
                     onLongClick = {},
@@ -39,6 +43,63 @@ class AppGridItemTest : ComposeTest() {
     }
 
     @Test
+    fun `a detailed tile shows the version`() {
+        composeTestRule.setContent {
+            PreviewWrapper {
+                AppGridItem(
+                    item = versionedItem,
+                    density = AppsViewStyle.Density.DETAILED,
+                    isSelected = false,
+                    onClick = {},
+                    onLongClick = {},
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithText("v120.0.6099").assertIsDisplayed()
+    }
+
+    @Test
+    fun `a compact tile drops the package name but keeps its tags`() {
+        composeTestRule.setContent {
+            PreviewWrapper {
+                AppGridItem(
+                    item = AppsMockDataProvider.Presets.disabledAppItem,
+                    density = AppsViewStyle.Density.COMPACT,
+                    isSelected = false,
+                    onClick = {},
+                    onLongClick = {},
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithText("Spotify").assertIsDisplayed()
+        composeTestRule.onNodeWithText("com.spotify.music").assertDoesNotExist()
+        composeTestRule
+            .onNodeWithText(context.getString(R.string.apps_tag_disabled_label))
+            .assertIsDisplayed()
+    }
+
+    /** The checkbox takes the corner the version otherwise occupies, so it must land elsewhere. */
+    @Test
+    fun `a detailed tile keeps the version while selecting`() {
+        composeTestRule.setContent {
+            PreviewWrapper {
+                AppGridItem(
+                    item = versionedItem,
+                    density = AppsViewStyle.Density.DETAILED,
+                    isSelected = true,
+                    onClick = {},
+                    onLongClick = {},
+                    showSelection = true,
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithText("v120.0.6099").assertIsDisplayed()
+    }
+
+    @Test
     fun `package name row renders even without a version`() {
         val item = AppsMockDataProvider.createMockAppItem(
             packageName = "com.example.noversion",
@@ -49,6 +110,7 @@ class AppGridItemTest : ComposeTest() {
             PreviewWrapper {
                 AppGridItem(
                     item = item,
+                    density = AppsViewStyle.Density.COMFORTABLE,
                     isSelected = false,
                     onClick = {},
                     onLongClick = {},
@@ -65,6 +127,7 @@ class AppGridItemTest : ComposeTest() {
             PreviewWrapper {
                 AppGridItem(
                     item = AppsMockDataProvider.Presets.disabledAppItem,
+                    density = AppsViewStyle.Density.COMFORTABLE,
                     isSelected = false,
                     onClick = {},
                     onLongClick = {},
@@ -87,6 +150,7 @@ class AppGridItemTest : ComposeTest() {
                         label = "Chrome",
                         appSize = bytes,
                     ),
+                    density = AppsViewStyle.Density.COMFORTABLE,
                     isSelected = false,
                     onClick = {},
                     onLongClick = {},
@@ -107,6 +171,7 @@ class AppGridItemTest : ComposeTest() {
                         label = "Chrome",
                         appSize = null,
                     ),
+                    density = AppsViewStyle.Density.COMFORTABLE,
                     isSelected = false,
                     onClick = {},
                     onLongClick = {},

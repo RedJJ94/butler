@@ -41,7 +41,6 @@ import eu.darken.butler.explorer.core.engine.ExplorerLocation
 import eu.darken.butler.explorer.core.engine.TrashItemReference
 import eu.darken.butler.explorer.core.favorites.FavoriteItem
 import eu.darken.butler.explorer.core.sizes.DirectorySize
-import eu.darken.butler.explorer.core.toggled
 import eu.darken.butler.explorer.ui.explorer.ExplorerWorkspaceViewModel
 import eu.darken.butler.explorer.ui.explorer.actions.ExplorerActionBarItem
 import eu.darken.butler.explorer.ui.explorer.util.ExplorerSelectionState
@@ -377,9 +376,9 @@ object MockDataProvider {
             state = OperationDisplay.State.Completed(
                 summary = description.toCaString(),
                 completedAt = MockTimes.minutesAgo(minutesAgo),
-                report = object : Operation.Report {
+                report = object : Operation.Report.Paths {
                     override val summary = description.toCaString()
-                    override val affectedPaths = emptyList<Operation.Report.PathChange>()
+                    override val affectedPaths = emptyList<Operation.Report.Paths.PathChange>()
                     override val subjectPath = null
                 }
             ),
@@ -1161,7 +1160,7 @@ object MockDataProvider {
     ): List<ExplorerActionBarItem> = listOf(
         ExplorerActionBarItem.Common.Sort(),
         ExplorerActionBarItem.Common.Filter(),
-        ExplorerActionBarItem.Common.UpdateViewStyle(viewStyle.toggled()),
+        ExplorerActionBarItem.Common.ViewOptions(viewStyle),
         ExplorerActionBarItem.Common.Refresh(),
     )
 

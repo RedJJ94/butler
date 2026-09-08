@@ -10,18 +10,18 @@ import kotlin.math.roundToInt
  * JSON blob with the colors baked in, so the swap happens on the way to the parser instead. Both
  * halves have to agree, which is what `MascotPaletteTest` checks.
  *
- * Everything that touches the background moves, the hat included. The moustache is drawn wholly on
- * the bright head and carries its own `mascot_ink` value so it stays put.
+ * Everything that touches the background moves, the hat included. The moustache and tie carry
+ * their own `mascot_ink` value so they stay dark against the head and white shirt.
  */
 internal object MascotPalette {
 
     val NIGHT: Map<Int, Int> = mapOf(
-        0x262626 to 0x4d4d4d, // suit
-        0x1e1e1e to 0x464646, // trousers
-        0x3f3f3f to 0x5e5e5e, // lapel shadow
-        0x565656 to 0x6c6c6c, // lapel edge, left
-        0x666666 to 0x747474, // lapel edge, right
-        0x9b9a9a to 0x919191, // cuffs
+        0x262626 to 0xaeb8b2, // suit
+        0x1e1e1e to 0x929e97, // trousers
+        0x3f3f3f to 0x808c85, // lapel shadow
+        0x565656 to 0xc5cec8, // lapel edge, left
+        0x666666 to 0xdce3de, // lapel edge, right
+        0x9b9a9a to 0xedf1ee, // cuffs
     )
 
     // A static fill or stroke color: {"a": 0, "k": [r, g, b]}, sometimes with a fourth alpha slot.

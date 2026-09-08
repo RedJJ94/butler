@@ -66,9 +66,9 @@ fun ExplorerItemRenderer(
     // to pick up the drag. A null payload means no drag.
     val dragSource = dragPayloadFactory?.let { factory ->
         rememberWorkspaceDragSource(
-            cornerRadius = when (viewStyle) {
-                is ExplorerViewStyle.List -> 8.dp
-                is ExplorerViewStyle.Grid -> 4.dp
+            cornerRadius = when (viewStyle.mode) {
+                ExplorerViewStyle.Mode.LIST -> 8.dp
+                ExplorerViewStyle.Mode.GRID -> 4.dp
             },
         ) { factory(item) }
     }
@@ -134,9 +134,10 @@ private fun ItemContent(
             val isHighlighted = item.id in state.highlightedItemIds
             val decorations = decorationsFor(item, state)
             val sizeFraction = item.sizeFractionOf(state.largestDirectorySize)
-            when (viewStyle) {
-                is ExplorerViewStyle.List -> LookupItemRow(
+            when (viewStyle.mode) {
+                ExplorerViewStyle.Mode.LIST -> LookupItemRow(
                     item = item,
+                    density = viewStyle.density,
                     isSelected = isSelected,
                     onToggleSelection = { onToggleSelection(item) },
                     onClick = { onItemClick(item) },
@@ -147,8 +148,9 @@ private fun ItemContent(
                     decorations = decorations,
                     sizeFraction = sizeFraction,
                 )
-                is ExplorerViewStyle.Grid -> LookupItemGrid(
+                ExplorerViewStyle.Mode.GRID -> LookupItemGrid(
                     item = item,
+                    density = viewStyle.density,
                     isSelected = isSelected,
                     onToggleSelection = { onToggleSelection(item) },
                     onClick = { onItemClick(item) },
@@ -164,21 +166,23 @@ private fun ItemContent(
         }
 
         is ExplorerItem.Peek -> {
-            when (viewStyle) {
-                is ExplorerViewStyle.List -> PeekRow(item = item)
-                is ExplorerViewStyle.Grid -> PeekGrid(item = item)
+            when (viewStyle.mode) {
+                ExplorerViewStyle.Mode.LIST -> PeekRow(item = item, density = viewStyle.density)
+                ExplorerViewStyle.Mode.GRID -> PeekGrid(item = item, density = viewStyle.density)
             }
         }
 
         is ExplorerItem.Shortcut -> {
-            when (viewStyle) {
-                is ExplorerViewStyle.List -> ShortcutRow(
+            when (viewStyle.mode) {
+                ExplorerViewStyle.Mode.LIST -> ShortcutRow(
                     item = item,
+                    density = viewStyle.density,
                     isEnabled = isEnabled,
                     onClick = { onNavigate(item) },
                 )
-                is ExplorerViewStyle.Grid -> ShortcutGrid(
+                ExplorerViewStyle.Mode.GRID -> ShortcutGrid(
                     item = item,
+                    density = viewStyle.density,
                     isEnabled = isEnabled,
                     onClick = { onNavigate(item) },
                 )
@@ -193,9 +197,10 @@ private fun ItemContent(
             // Same entry point as every other item type: it guards against a live selection instead
             // of the composed one, so it can't race the drag session's own selection update.
             val onLongClick = { onItemLongClick(item) }
-            when (viewStyle) {
-                is ExplorerViewStyle.List -> StorageRow(
+            when (viewStyle.mode) {
+                ExplorerViewStyle.Mode.LIST -> StorageRow(
                     item = item,
+                    density = viewStyle.density,
                     isSelected = isSelected,
                     onToggleSelection = { onToggleSelection(item) },
                     onClick = { onItemClick(item) },
@@ -204,8 +209,9 @@ private fun ItemContent(
                     isEnabled = isEnabled,
                     decorations = decorations,
                 )
-                is ExplorerViewStyle.Grid -> StorageGrid(
+                ExplorerViewStyle.Mode.GRID -> StorageGrid(
                     item = item,
+                    density = viewStyle.density,
                     isSelected = isSelected,
                     onToggleSelection = { onToggleSelection(item) },
                     onClick = { onItemClick(item) },
@@ -218,17 +224,19 @@ private fun ItemContent(
         }
 
         is ExplorerItem.Trash.Root -> {
-            when (viewStyle) {
-                is ExplorerViewStyle.List -> TrashItemRow(
+            when (viewStyle.mode) {
+                ExplorerViewStyle.Mode.LIST -> TrashItemRow(
                     item = item,
+                    density = viewStyle.density,
                     isSelected = isSelected,
                     onToggleSelection = { onToggleSelection(item) },
                     onClick = { onItemClick(item) },
                     onLongClick = { onItemLongClick(item) },
                     showSelection = showSelection,
                 )
-                is ExplorerViewStyle.Grid -> TrashItemGrid(
+                ExplorerViewStyle.Mode.GRID -> TrashItemGrid(
                     item = item,
+                    density = viewStyle.density,
                     isSelected = isSelected,
                     onToggleSelection = { onToggleSelection(item) },
                     onClick = { onItemClick(item) },
@@ -239,17 +247,19 @@ private fun ItemContent(
         }
 
         is ExplorerItem.Trash.Nested -> {
-            when (viewStyle) {
-                is ExplorerViewStyle.List -> TrashNestedItemRow(
+            when (viewStyle.mode) {
+                ExplorerViewStyle.Mode.LIST -> TrashNestedItemRow(
                     item = item,
+                    density = viewStyle.density,
                     isSelected = isSelected,
                     onToggleSelection = { onToggleSelection(item) },
                     onClick = { onItemClick(item) },
                     onLongClick = { onItemLongClick(item) },
                     showSelection = showSelection,
                 )
-                is ExplorerViewStyle.Grid -> TrashNestedItemGrid(
+                ExplorerViewStyle.Mode.GRID -> TrashNestedItemGrid(
                     item = item,
+                    density = viewStyle.density,
                     isSelected = isSelected,
                     onToggleSelection = { onToggleSelection(item) },
                     onClick = { onItemClick(item) },
