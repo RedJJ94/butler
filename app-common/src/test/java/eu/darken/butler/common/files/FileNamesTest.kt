@@ -50,6 +50,13 @@ class FileNamesTest : BaseTest() {
     }
 
     @Test
+    fun `surrounding whitespace is stripped`() {
+        sanitizeForFileName(" a ", 48) shouldBe "a"
+        sanitizeForFileName("a_ ", 48) shouldBe "a"
+        sanitizeForFileName("  a", 48) shouldBe "a"
+    }
+
+    @Test
     fun `a name of nothing but separators sanitizes to nothing`() {
         sanitizeForFileName("/\\:*", 48) shouldBe ""
         sanitizeForFileName("...", 48) shouldBe ""
