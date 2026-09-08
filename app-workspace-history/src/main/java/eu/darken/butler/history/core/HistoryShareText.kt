@@ -103,7 +103,8 @@ private fun HistoryEntry.toShareBlock(
             append("**").append(context.getString(R.string.history_share_label_packages, packages.size)).append("**\n")
             packages.forEach { outcome ->
                 append("- ").append(context.getString(outcome.status.labelRes)).append(": ")
-                append(singleLine(outcome.label)).append('\n')
+                append(singleLine(outcome.label))
+                append(" (").append(singleLine(outcome.packageName)).append(")").append('\n')
                 outcome.errorMessage?.takeIf { it.isNotBlank() }?.let {
                     append("  ").append(singleLine(it)).append('\n')
                 }

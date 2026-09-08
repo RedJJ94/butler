@@ -47,6 +47,7 @@ data class HistoryEntry(
 
     data class PackageOutcome(
         val label: String,
+        val packageName: String,
         val status: Operation.Report.Packages.Outcome.Status,
         val errorMessage: String?,
     )

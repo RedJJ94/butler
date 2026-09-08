@@ -226,10 +226,12 @@ class OperationHistoryPersistTest : BaseTest() {
                         outcomes = listOf(
                             Operation.Report.Packages.Outcome(
                                 label = "Chrome".toCaString(),
+                                packageName = "com.android.chrome",
                                 status = Operation.Report.Packages.Outcome.Status.DONE,
                             ),
                             Operation.Report.Packages.Outcome(
                                 label = "System UI".toCaString(),
+                                packageName = "com.android.systemui",
                                 status = Operation.Report.Packages.Outcome.Status.FAILED,
                                 error = IOException("Operation not permitted"),
                             ),
@@ -248,11 +250,13 @@ class OperationHistoryPersistTest : BaseTest() {
         entry.packages shouldContainExactly listOf(
             HistoryEntry.PackageOutcome(
                 label = "Chrome",
+                packageName = "com.android.chrome",
                 status = Operation.Report.Packages.Outcome.Status.DONE,
                 errorMessage = null,
             ),
             HistoryEntry.PackageOutcome(
                 label = "System UI",
+                packageName = "com.android.systemui",
                 status = Operation.Report.Packages.Outcome.Status.FAILED,
                 errorMessage = "Operation not permitted",
             ),
@@ -270,14 +274,17 @@ class OperationHistoryPersistTest : BaseTest() {
                         outcomes = listOf(
                             Operation.Report.Packages.Outcome(
                                 label = "Notes".toCaString(),
+                                packageName = "com.example.notes",
                                 status = Operation.Report.Packages.Outcome.Status.DECLINED,
                             ),
                             Operation.Report.Packages.Outcome(
                                 label = "Chrome".toCaString(),
+                                packageName = "com.android.chrome",
                                 status = Operation.Report.Packages.Outcome.Status.DONE,
                             ),
                             Operation.Report.Packages.Outcome(
                                 label = "System UI".toCaString(),
+                                packageName = "com.android.systemui",
                                 status = Operation.Report.Packages.Outcome.Status.FAILED,
                                 error = IOException("Operation not permitted"),
                             ),
@@ -289,6 +296,11 @@ class OperationHistoryPersistTest : BaseTest() {
 
         val entry = repo.observeEntry(id).first()!!
         entry.packages.map { it.label } shouldContainExactly listOf("Notes", "Chrome", "System UI")
+        entry.packages.map { it.packageName } shouldContainExactly listOf(
+            "com.example.notes",
+            "com.android.chrome",
+            "com.android.systemui",
+        )
         entry.packages.map { it.status } shouldContainExactly listOf(
             Operation.Report.Packages.Outcome.Status.DECLINED,
             Operation.Report.Packages.Outcome.Status.DONE,
@@ -308,6 +320,7 @@ class OperationHistoryPersistTest : BaseTest() {
                         outcomes = (0 until outcomeCount).map { index ->
                             Operation.Report.Packages.Outcome(
                                 label = "App $index".toCaString(),
+                                packageName = "com.example.app$index",
                                 status = when (index) {
                                     outcomeCount - 1 -> Operation.Report.Packages.Outcome.Status.FAILED
                                     else -> Operation.Report.Packages.Outcome.Status.DONE
@@ -328,6 +341,7 @@ class OperationHistoryPersistTest : BaseTest() {
         entry.packages.map { it.label } shouldContainExactly (0 until outcomeCount).map { "App $it" }
         entry.packages.last() shouldBe HistoryEntry.PackageOutcome(
             label = "App ${outcomeCount - 1}",
+            packageName = "com.example.app${outcomeCount - 1}",
             status = Operation.Report.Packages.Outcome.Status.FAILED,
             errorMessage = "Operation not permitted",
         )
@@ -367,6 +381,7 @@ class OperationHistoryPersistTest : BaseTest() {
                         outcomes = listOf(
                             Operation.Report.Packages.Outcome(
                                 label = "Chrome".toCaString(),
+                                packageName = "com.android.chrome",
                                 status = Operation.Report.Packages.Outcome.Status.DONE,
                             ),
                         ),

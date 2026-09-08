@@ -121,6 +121,7 @@ class OperationHistoryRepo @Inject constructor(
             OperationHistoryPackageEntity(
                 operationHistoryId = rowId,
                 label = outcome.label.get(context),
+                packageName = outcome.packageName,
                 status = outcome.status.name,
                 errorMessage = outcome.error?.let { it.localizedMessage ?: it.javaClass.simpleName },
                 sortIndex = index,
@@ -408,6 +409,7 @@ class OperationHistoryRepo @Inject constructor(
         packages = packages.sortedBy { it.sortIndex }.map { p ->
             HistoryEntry.PackageOutcome(
                 label = p.label,
+                packageName = p.packageName,
                 status = Operation.Report.Packages.Outcome.Status.valueOf(p.status),
                 errorMessage = p.errorMessage,
             )

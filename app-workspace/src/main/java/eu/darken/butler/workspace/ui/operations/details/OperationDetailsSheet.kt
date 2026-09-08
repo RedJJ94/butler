@@ -377,15 +377,18 @@ private fun OperationDetailsSheetCompletedWithPackagesPreview() {
                     outcomes = listOf(
                         Operation.Report.Packages.Outcome(
                             label = "Chrome".toCaString(),
+                            packageName = "com.android.chrome",
                             status = Operation.Report.Packages.Outcome.Status.DONE,
                         ),
                         Operation.Report.Packages.Outcome(
                             label = "System UI".toCaString(),
+                            packageName = "com.android.systemui",
                             status = Operation.Report.Packages.Outcome.Status.FAILED,
                             error = IllegalStateException("Operation not permitted"),
                         ),
                         Operation.Report.Packages.Outcome(
                             label = "Notes".toCaString(),
+                            packageName = "com.example.notes",
                             status = Operation.Report.Packages.Outcome.Status.DONE,
                         ),
                     ),

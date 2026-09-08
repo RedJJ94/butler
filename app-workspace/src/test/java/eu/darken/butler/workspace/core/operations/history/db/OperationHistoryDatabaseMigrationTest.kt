@@ -103,8 +103,8 @@ class OperationHistoryDatabaseMigrationTest : BaseTest() {
 
         migrated.execSQL(
             "INSERT INTO operation_history_packages " +
-                "(operationHistoryId, label, status, errorMessage, sortIndex) " +
-                "VALUES ('op-1', 'Chrome', 'DONE', NULL, 0)"
+                "(operationHistoryId, label, packageName, status, errorMessage, sortIndex) " +
+                "VALUES ('op-1', 'Chrome', 'com.android.chrome', 'DONE', NULL, 0)"
         )
         migrated.countOf("operation_history_packages") shouldBe 1
 

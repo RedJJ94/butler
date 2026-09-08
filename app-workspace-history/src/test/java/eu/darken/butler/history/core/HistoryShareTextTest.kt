@@ -195,16 +195,19 @@ class HistoryShareTextTest : BaseTest() {
                     listOf(
                         HistoryEntry.PackageOutcome(
                             label = "Chrome",
+                            packageName = "com.android.chrome",
                             status = Operation.Report.Packages.Outcome.Status.DONE,
                             errorMessage = null,
                         ),
                         HistoryEntry.PackageOutcome(
                             label = "System UI",
+                            packageName = "com.android.systemui",
                             status = Operation.Report.Packages.Outcome.Status.FAILED,
                             errorMessage = "Operation not permitted",
                         ),
                         HistoryEntry.PackageOutcome(
                             label = "Notes",
+                            packageName = "com.example.notes",
                             status = Operation.Report.Packages.Outcome.Status.DECLINED,
                             errorMessage = null,
                         ),
@@ -218,9 +221,9 @@ class HistoryShareTextTest : BaseTest() {
         )
 
         text shouldContain "**Affected apps (3)**\n"
-        text shouldContain "- Done: Chrome\n"
-        text shouldContain "- Failed: System UI\n  Operation not permitted\n"
-        text shouldContain "- Declined: Notes"
+        text shouldContain "- Done: Chrome (com.android.chrome)\n"
+        text shouldContain "- Failed: System UI (com.android.systemui)\n  Operation not permitted\n"
+        text shouldContain "- Declined: Notes (com.example.notes)"
         text shouldNotContain "Affected paths"
         text shouldNotContain "Attempted paths"
     }

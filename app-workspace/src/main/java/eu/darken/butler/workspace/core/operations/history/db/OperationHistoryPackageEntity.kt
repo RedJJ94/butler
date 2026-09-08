@@ -29,6 +29,8 @@ data class OperationHistoryPackageEntity(
     val operationHistoryId: String,
     /** App label, or `label · component class` for a component. */
     val label: String,
+    /** Package name of the app the outcome belongs to; for a component, its owning app. */
+    val packageName: String,
     /** [eu.darken.butler.workspace.core.operations.Operation.Report.Packages.Outcome.Status] name. */
     val status: String,
     /** What the live operation details sheet displays for a failure. Null unless it failed. */

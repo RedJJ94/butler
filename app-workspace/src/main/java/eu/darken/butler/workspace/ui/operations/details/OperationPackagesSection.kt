@@ -74,6 +74,13 @@ internal fun OperationPackagesSection(
                             maxLines = 1,
                             overflow = TextOverflow.MiddleEllipsis,
                         )
+                        Text(
+                            text = outcome.packageName,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.MiddleEllipsis,
+                        )
                         outcome.error?.let { error ->
                             Text(
                                 text = error.localizedMessage ?: error.javaClass.simpleName,
@@ -98,15 +105,18 @@ private fun OperationPackagesSectionPreview() {
         outcomes = listOf(
             Operation.Report.Packages.Outcome(
                 label = "Chrome".toCaString(),
+                packageName = "com.android.chrome",
                 status = Operation.Report.Packages.Outcome.Status.DONE,
             ),
             Operation.Report.Packages.Outcome(
                 label = "System UI".toCaString(),
+                packageName = "com.android.systemui",
                 status = Operation.Report.Packages.Outcome.Status.FAILED,
                 error = IOException("Operation not permitted"),
             ),
             Operation.Report.Packages.Outcome(
                 label = "Notes".toCaString(),
+                packageName = "com.example.notes",
                 status = Operation.Report.Packages.Outcome.Status.DECLINED,
             ),
         ),

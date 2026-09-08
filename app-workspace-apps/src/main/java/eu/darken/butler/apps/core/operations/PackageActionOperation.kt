@@ -126,7 +126,7 @@ class PackageActionOperation @AssistedInject constructor(
                     "${command.target.label.get(it)} · ${entry.className.substringAfterLast('.')}"
                 }
                 send(activeState(startedAt, label, index, command.entries.size))
-                outcomes += runTarget(label) {
+                outcomes += runTarget(label, command.target.installId.pkgId.name) {
                     pkgOps.changeComponentState(
                         entry.packageName.toPkgId(),
                         entry.className,
@@ -138,19 +138,19 @@ class PackageActionOperation @AssistedInject constructor(
             else -> command.targets.forEachIndexed { index, target ->
                 send(activeState(startedAt, target.label, index, command.targets.size))
                 outcomes += when (command) {
-                    is PackageCommand.Enable -> runTarget(target.label) {
+                    is PackageCommand.Enable -> runTarget(target.label, target.installId.pkgId.name) {
                         pkgOps.changePackageState(target.installId.pkgId, enabled = true)
                     }
 
-                    is PackageCommand.Disable -> runTarget(target.label) {
+                    is PackageCommand.Disable -> runTarget(target.label, target.installId.pkgId.name) {
                         pkgOps.changePackageState(target.installId.pkgId, enabled = false)
                     }
 
-                    is PackageCommand.ForceStop -> runTarget(target.label) {
+                    is PackageCommand.ForceStop -> runTarget(target.label, target.installId.pkgId.name) {
                         pkgOps.forceStop(target.installId.pkgId)
                     }
 
-                    is PackageCommand.ClearData -> runTarget(target.label) {
+                    is PackageCommand.ClearData -> runTarget(target.label, target.installId.pkgId.name) {
                         pkgOps.clearData(target.installId)
                     }
 
@@ -210,15 +210,16 @@ class PackageActionOperation @AssistedInject constructor(
 
     private suspend inline fun runTarget(
         label: CaString,
+        packageName: String,
         block: () -> Unit,
     ): Operation.Report.Packages.Outcome = try {
         block()
-        outcome(label, Operation.Report.Packages.Outcome.Status.DONE)
+        outcome(label, packageName, Operation.Report.Packages.Outcome.Status.DONE)
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
         log(tag, WARN) { "Target failed: ${e.asLog()}" }
-        outcome(label, Operation.Report.Packages.Outcome.Status.FAILED, e)
+        outcome(label, packageName, Operation.Report.Packages.Outcome.Status.FAILED, e)
     }
 
     private suspend fun uninstall(
@@ -231,7 +232,7 @@ class PackageActionOperation @AssistedInject constructor(
         if (!useSystemDialog) {
             try {
                 pkgOps.uninstall(target.installId)
-                return outcome(target.label, Operation.Report.Packages.Outcome.Status.DONE)
+                return outcome(target.label, target.installId.pkgId.name, Operation.Report.Packages.Outcome.Status.DONE)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -239,7 +240,12 @@ class PackageActionOperation @AssistedInject constructor(
                     .any { it is ElevatedAccessUnavailableException }
                 if (!elevationLost) {
                     log(tag, WARN) { "Elevated uninstall failed: ${e.asLog()}" }
-                    return outcome(target.label, Operation.Report.Packages.Outcome.Status.FAILED, e)
+                    return outcome(
+                        target.label,
+                        target.installId.pkgId.name,
+                        Operation.Report.Packages.Outcome.Status.FAILED,
+                        e,
+                    )
                 }
                 // Elevated access was lost between the submit and here; Android's dialog is what
                 // is left to ask with.
@@ -254,25 +260,31 @@ class PackageActionOperation @AssistedInject constructor(
                 onConfirmationRequired = onWaiting,
             )
             onResumed()
-            outcome(target.label, Operation.Report.Packages.Outcome.Status.DONE)
+            outcome(target.label, target.installId.pkgId.name, Operation.Report.Packages.Outcome.Status.DONE)
         } catch (e: CancellationException) {
             throw e
         } catch (e: UninstallDeclinedException) {
             log(tag, INFO) { "The removal was declined" }
             onResumed()
-            outcome(target.label, Operation.Report.Packages.Outcome.Status.DECLINED)
+            outcome(target.label, target.installId.pkgId.name, Operation.Report.Packages.Outcome.Status.DECLINED)
         } catch (e: Exception) {
             log(tag, WARN) { "System uninstall failed: ${e.asLog()}" }
             onResumed()
-            outcome(target.label, Operation.Report.Packages.Outcome.Status.FAILED, e)
+            outcome(target.label, target.installId.pkgId.name, Operation.Report.Packages.Outcome.Status.FAILED, e)
         }
     }
 
     private fun outcome(
         label: CaString,
+        packageName: String,
         status: Operation.Report.Packages.Outcome.Status,
         error: Throwable? = null,
-    ) = Operation.Report.Packages.Outcome(label = label, status = status, error = error)
+    ) = Operation.Report.Packages.Outcome(
+        label = label,
+        packageName = packageName,
+        status = status,
+        error = error,
+    )
 
     /**
      * The state the command changed is the operation's to publish; a failure here is swallowed

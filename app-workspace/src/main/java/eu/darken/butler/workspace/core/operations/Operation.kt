@@ -202,6 +202,8 @@ interface Operation {
             data class Outcome(
                 /** App label, or `label · component class` for a component. */
                 val label: CaString,
+                /** Package name of the app the outcome belongs to; for a component, its owning app. */
+                val packageName: String,
                 val status: Status,
                 val error: Throwable? = null,
             ) {

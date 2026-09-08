@@ -288,6 +288,13 @@ private fun PackageRow(outcome: HistoryEntry.PackageOutcome) {
                 maxLines = 1,
                 overflow = TextOverflow.MiddleEllipsis,
             )
+            Text(
+                text = outcome.packageName,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.MiddleEllipsis,
+            )
             outcome.errorMessage?.takeIf { it.isNotBlank() }?.let { error ->
                 Text(
                     text = error,
@@ -446,16 +453,19 @@ private fun HistoryEntryDetailsBottomSheetPackagesPreview() {
             packages = listOf(
                 HistoryEntry.PackageOutcome(
                     label = "Chrome",
+                    packageName = "com.android.chrome",
                     status = Operation.Report.Packages.Outcome.Status.DONE,
                     errorMessage = null,
                 ),
                 HistoryEntry.PackageOutcome(
                     label = "System UI",
+                    packageName = "com.android.systemui",
                     status = Operation.Report.Packages.Outcome.Status.FAILED,
                     errorMessage = "Operation not permitted",
                 ),
                 HistoryEntry.PackageOutcome(
                     label = "Notes",
+                    packageName = "com.example.notes",
                     status = Operation.Report.Packages.Outcome.Status.DECLINED,
                     errorMessage = null,
                 ),

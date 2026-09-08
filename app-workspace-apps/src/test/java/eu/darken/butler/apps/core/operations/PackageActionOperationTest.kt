@@ -60,9 +60,9 @@ class PackageActionOperationTest : BaseTest() {
     private val workspaceId = Workspace.Id()
     private val origin = Operation.Metadata.Origin.Apps(workspaceId)
 
-    private fun target(name: String) = PackageCommand.Target(
+    private fun target(name: String, label: String = name) = PackageCommand.Target(
         installId = InstallId(Pkg.Id(name), UserHandle2(0)),
-        label = name.toCaString(),
+        label = label.toCaString(),
     )
 
     private fun operation(command: PackageCommand) = PackageActionOperation(
@@ -100,7 +100,9 @@ class PackageActionOperationTest : BaseTest() {
         coEvery { pkgOps.changePackageState(Pkg.Id("b"), any(), any()) } throws IOException("nope")
 
         val completed = run(
-            PackageCommand.Disable(listOf(target("a"), target("b"), target("c")))
+            PackageCommand.Disable(
+                listOf(target("a", label = "Alpha"), target("b", label = "Beta"), target("c", label = "Gamma"))
+            )
         ).completed()
 
         completed.error shouldBe null
@@ -110,6 +112,8 @@ class PackageActionOperationTest : BaseTest() {
             Operation.Report.Packages.Outcome.Status.FAILED,
             Operation.Report.Packages.Outcome.Status.DONE,
         )
+        report.outcomes.map { it.label.get(context) } shouldContainExactly listOf("Alpha", "Beta", "Gamma")
+        report.outcomes.map { it.packageName } shouldContainExactly listOf("a", "b", "c")
         report.partialErrorCount shouldBe 1
         coVerify(exactly = 1) { pkgRepo.refresh() }
     }
@@ -253,11 +257,17 @@ class PackageActionOperationTest : BaseTest() {
             ),
         )
         val completed = run(
-            PackageCommand.SetComponents(target = target("a"), entries = entries, enabled = false)
+            PackageCommand.SetComponents(
+                target = target("a", label = "Alpha"),
+                entries = entries,
+                enabled = false,
+            )
         ).completed()
 
         completed.packages().outcomes.size shouldBe 2
-        completed.packages().outcomes.first().label.get(context) shouldBe "a · MainActivity"
+        completed.packages().outcomes.first().label.get(context) shouldBe "Alpha · MainActivity"
+        // A component outcome carries the owning app's package name, not the component's class.
+        completed.packages().outcomes.map { it.packageName } shouldContainExactly listOf("a", "a")
         // Components are the page's to reload; the package data itself did not change.
         coVerify(exactly = 0) { pkgRepo.refresh() }
     }

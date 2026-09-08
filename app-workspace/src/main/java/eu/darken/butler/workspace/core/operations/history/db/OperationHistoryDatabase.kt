@@ -66,6 +66,7 @@ abstract class OperationHistoryDatabase : RoomDatabase() {
                         "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
                         "`operationHistoryId` TEXT NOT NULL, " +
                         "`label` TEXT NOT NULL, " +
+                        "`packageName` TEXT NOT NULL, " +
                         "`status` TEXT NOT NULL, " +
                         "`errorMessage` TEXT, " +
                         "`sortIndex` INTEGER NOT NULL, " +

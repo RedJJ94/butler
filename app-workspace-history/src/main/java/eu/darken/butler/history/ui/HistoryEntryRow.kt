@@ -326,6 +326,7 @@ private fun HistoryEntryRowPackagePreview() {
             packages = listOf(
                 HistoryEntry.PackageOutcome(
                     label = "PP Test App",
+                    packageName = "eu.darken.myperm.testapp",
                     status = Operation.Report.Packages.Outcome.Status.DONE,
                     errorMessage = null,
                 ),

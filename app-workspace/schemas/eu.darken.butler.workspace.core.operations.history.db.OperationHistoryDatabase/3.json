@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 3,
-    "identityHash": "7699b5faad97a99349d4e83013234741",
+    "identityHash": "283f188d76e62158638117e9c22a7c17",
     "entities": [
       {
         "tableName": "operation_history",
@@ -299,7 +299,7 @@
       },
       {
         "tableName": "operation_history_packages",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `operationHistoryId` TEXT NOT NULL, `label` TEXT NOT NULL, `status` TEXT NOT NULL, `errorMessage` TEXT, `sortIndex` INTEGER NOT NULL, FOREIGN KEY(`operationHistoryId`) REFERENCES `operation_history`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `operationHistoryId` TEXT NOT NULL, `label` TEXT NOT NULL, `packageName` TEXT NOT NULL, `status` TEXT NOT NULL, `errorMessage` TEXT, `sortIndex` INTEGER NOT NULL, FOREIGN KEY(`operationHistoryId`) REFERENCES `operation_history`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         "fields": [
           {
             "fieldPath": "id",
@@ -316,6 +316,12 @@
           {
             "fieldPath": "label",
             "columnName": "label",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "packageName",
+            "columnName": "packageName",
             "affinity": "TEXT",
             "notNull": true
           },
@@ -371,7 +377,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '7699b5faad97a99349d4e83013234741')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '283f188d76e62158638117e9c22a7c17')"
     ]
   }
 }
