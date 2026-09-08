@@ -137,6 +137,7 @@ class PackageActionOperationTest : BaseTest() {
         completed.packages().outcomes.map { it.status } shouldContainExactly listOf(
             Operation.Report.Packages.Outcome.Status.DECLINED,
         )
+        completed.summary.get(context) shouldBe "Removal of a declined"
 
         // Emitted, not thrown: the framework's cancellation path would drop the report.
         val manager = OperationsManager(TestDispatcherProvider())
@@ -158,6 +159,7 @@ class PackageActionOperationTest : BaseTest() {
 
         completed.packages().outcomes.single().status shouldBe Operation.Report.Packages.Outcome.Status.FAILED
         completed.error.shouldBeInstanceOf<SystemUninstallException>()
+        completed.summary.get(context) shouldBe "Could not complete for a"
     }
 
     @Test

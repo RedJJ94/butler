@@ -286,6 +286,8 @@
         <item quantity="one">%1$d component disabled</item>
         <item quantity="other">%1$d components disabled</item>
     </plurals>
+    <string name="apps_operation_single_failed_summary">Could not complete for %1$s</string>
+    <string name="apps_operation_single_declined_summary">Removal of %1$s declined</string>
     <string name="apps_operation_batch_summary">%1$d of %2$d done</string>
     <!-- Quoted so the leading separator survives the resource parser -->
     <string name="apps_operation_batch_summary_failed">" · %1$d failed"</string>

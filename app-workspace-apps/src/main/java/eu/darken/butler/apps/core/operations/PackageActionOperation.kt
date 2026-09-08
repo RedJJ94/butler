@@ -308,7 +308,19 @@ class PackageActionOperation @AssistedInject constructor(
         val failed = outcomes.count { it.status == Operation.Report.Packages.Outcome.Status.FAILED }
         val declined = outcomes.count { it.status == Operation.Report.Packages.Outcome.Status.DECLINED }
 
-        if (outcomes.size == 1 && done == 1) return singleDoneSummary(outcomes.first().label)
+        outcomes.singleOrNull()?.let { single ->
+            // A single target has a name, so the counting wording of a batch says less than it does.
+            return when (single.status) {
+                Operation.Report.Packages.Outcome.Status.DONE -> singleDoneSummary(single.label)
+                Operation.Report.Packages.Outcome.Status.FAILED -> caString {
+                    it.getString(R.string.apps_operation_single_failed_summary, single.label.get(it))
+                }
+
+                Operation.Report.Packages.Outcome.Status.DECLINED -> caString {
+                    it.getString(R.string.apps_operation_single_declined_summary, single.label.get(it))
+                }
+            }
+        }
 
         return caString {
             buildString {
