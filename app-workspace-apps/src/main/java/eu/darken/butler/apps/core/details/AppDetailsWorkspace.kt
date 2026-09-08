@@ -13,10 +13,10 @@ import dagger.multibindings.IntoMap
 import eu.darken.butler.apps.R
 import eu.darken.butler.apps.core.AppPath
 import eu.darken.butler.apps.core.AppSizeCache
-import eu.darken.butler.apps.core.operations.PackageActionOperation
-import eu.darken.butler.apps.core.operations.PackageCommand
 import eu.darken.butler.apps.core.details.components.ComponentToggleAvailability
 import eu.darken.butler.apps.core.details.components.ComponentToggleState
+import eu.darken.butler.apps.core.operations.PackageActionOperation
+import eu.darken.butler.apps.core.operations.PackageCommand
 import eu.darken.butler.common.adb.AdbManager
 import eu.darken.butler.common.ca.CaString
 import eu.darken.butler.common.ca.toCaString
@@ -46,14 +46,14 @@ import eu.darken.butler.workspace.core.WorkspaceFactory
 import eu.darken.butler.workspace.core.WorkspaceRemote
 import eu.darken.butler.workspace.core.WorkspaceTypeKey
 import eu.darken.butler.workspace.core.initialInfo
+import eu.darken.butler.workspace.core.isPausableAsChild
+import eu.darken.butler.workspace.core.label
 import eu.darken.butler.workspace.core.operations.ManagedOperation
 import eu.darken.butler.workspace.core.operations.Operation
 import eu.darken.butler.workspace.core.operations.OperationsManager
 import eu.darken.butler.workspace.core.operations.current
 import eu.darken.butler.workspace.core.operations.operationsForWorkspace
 import eu.darken.butler.workspace.core.operations.withOnlyStateChanges
-import eu.darken.butler.workspace.core.isPausableAsChild
-import eu.darken.butler.workspace.core.label
 import eu.darken.butler.workspace.core.stateInWorkspace
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
@@ -332,7 +332,7 @@ class AppDetailsWorkspace @AssistedInject constructor(
             var attention = 0
             operations.forEach { operation ->
                 val isAppWide = operation.metadata.kind != Operation.Metadata.Kind.COMPONENTS
-                when (val state = operation.state.value) {
+                when (val opState = operation.state.value) {
                     is Operation.State.Queued, is Operation.State.Active -> {
                         unfinished++
                         if (isAppWide) unfinishedAppWide++
@@ -345,7 +345,7 @@ class AppDetailsWorkspace @AssistedInject constructor(
                     }
 
                     is Operation.State.Completed -> {
-                        if (state.error != null && state.error !is CancellationException) attention++
+                        if (opState.error != null && opState.error !is CancellationException) attention++
                     }
                 }
             }

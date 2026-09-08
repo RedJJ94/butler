@@ -24,4 +24,5 @@ internal object AppsBarKeys {
     const val TOOLBAR = "toolbar"
     const val INFOBAR = "infobar"
     const val ACTIONS = "actions"
+    const val OPERATIONS = "operations"
 }
