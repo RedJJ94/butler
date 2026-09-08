@@ -44,6 +44,7 @@ class CalculateSizesOperation @AssistedInject constructor(
     @Assisted store: DirectorySizeStore,
     private val gatewaySwitch: GatewaySwitch,
     private val dispatcherProvider: DispatcherProvider,
+    private val clock: Clock,
 ) : ExplorerOperation() {
 
     private val tag = logTag("Explorer", "Workspace", workspaceId.shortTag, "Operation", "CalculateSizes")
@@ -81,7 +82,7 @@ class CalculateSizesOperation @AssistedInject constructor(
         val topLevel = children?.let { TopLevelProgress(root.path, it.keys) }
 
         val aggregator = DirectorySizeAggregator(root)
-        val tracker = PathOperationProgressTracker()
+        val tracker = PathOperationProgressTracker(clock = clock)
 
         fun activeState() = State.Active(
             startedAt = operationContext.startedAt,
@@ -136,14 +137,17 @@ class CalculateSizesOperation @AssistedInject constructor(
                 aggregator.onEntry(lookup)
                 topLevel?.onSeen(lookup.path)
                 tracker.completeItem()
+                // Compaction buckets samples by this total, without it a long scan drops its start.
+                tracker.totalItems = tracker.itemsProcessed
                 if (tracker.shouldReportProgress()) send(activeState())
             }
         aggregator.drain(errors, topLevel)
         topLevel?.finish()
+        tracker.totalItems = tracker.itemsProcessed
         tracker.shouldReportProgress(force = true)
         send(activeState())
 
-        val scan = aggregator.result(Clock.System.now())
+        val scan = aggregator.result(clock.now())
         log(tag, INFO) { "Scanned $root: ${scan.sizes.size} folders, ${scan.errorCount} errors" }
         val stored = checkNotNull(resultStore).publish(scan)
 

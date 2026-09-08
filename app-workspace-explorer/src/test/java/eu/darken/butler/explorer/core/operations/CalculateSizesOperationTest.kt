@@ -12,6 +12,7 @@ import eu.darken.butler.explorer.core.sizes.DirectorySizeStore
 import eu.darken.butler.workspace.core.Workspace
 import eu.darken.butler.workspace.core.operations.Operation
 import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.comparables.shouldBeLessThanOrEqualTo
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.should
 import io.kotest.matchers.shouldBe
@@ -22,7 +23,6 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.last
@@ -34,6 +34,9 @@ import org.junit.jupiter.api.Test
 import testhelpers.BaseTest
 import testhelpers.coroutine.TestDispatcherProvider
 import java.io.IOException
+import kotlin.time.Clock
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
 
 class CalculateSizesOperationTest : BaseTest() {
@@ -60,6 +63,15 @@ class CalculateSizesOperationTest : BaseTest() {
         modifiedAt = null,
     )
 
+    /** Each read outruns the tracker's report interval, so every walked entry reports progress. */
+    private class SteppingClock(private val step: Duration = 300.milliseconds) : Clock {
+        private var current = Instant.fromEpochMilliseconds(0)
+        override fun now(): Instant {
+            current += step
+            return current
+        }
+    }
+
     private fun operation(store: DirectorySizeStore, dispatcherProvider: DispatcherProvider) =
         CalculateSizesOperation(
             workspaceId = Workspace.Id(),
@@ -67,6 +79,7 @@ class CalculateSizesOperationTest : BaseTest() {
             store = store,
             gatewaySwitch = gatewaySwitch,
             dispatcherProvider = dispatcherProvider,
+            clock = SteppingClock(),
         )
 
     private fun context() = Operation.Context(id = Operation.Id(), startedAt = Instant.DISTANT_PAST)
@@ -142,8 +155,6 @@ class CalculateSizesOperationTest : BaseTest() {
         coEvery { gateway.walk(any(), any(), any()) } returns flow {
             emit(lookup("/a/one", FileType.DIRECTORY))
             emit(lookup("/a/one/file", FileType.FILE, size = 10L))
-            // Outruns the tracker's report interval so the state below is actually sent.
-            delay(REPORT_GAP)
             emit(lookup("/a/two", FileType.DIRECTORY))
             emit(lookup("/a/two/file", FileType.FILE, size = 20L))
         }
@@ -194,7 +205,20 @@ class CalculateSizesOperationTest : BaseTest() {
         report.performanceHistory?.totalItems shouldBe 2
     }
 
-    companion object {
-        private const val REPORT_GAP = 350L
+    @Test
+    fun `a long scan keeps the start of its performance history`() = runTest {
+        coEvery { gateway.walk(any(), any(), any()) } returns flow {
+            emit(lookup("/a/one", FileType.DIRECTORY))
+            repeat(1100) { emit(lookup("/a/one/file$it", FileType.FILE, size = 10L)) }
+        }
+
+        val completed = operation(DirectorySizeStore(), realIoDispatchers)
+            .perform(context())
+            .last() as ExplorerOperation.State.Completed
+
+        val report = completed.report as CalculateSizesOperation.Report
+        val samples = report.performanceHistory.shouldNotBeNull().samples
+        samples.size shouldBeLessThanOrEqualTo 1000
+        samples.minOf { it.totalItemsProcessed } shouldBeLessThanOrEqualTo 2
     }
 }
