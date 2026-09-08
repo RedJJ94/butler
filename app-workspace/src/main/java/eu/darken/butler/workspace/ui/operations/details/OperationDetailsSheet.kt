@@ -125,6 +125,20 @@ private fun OperationDetailsContent(
             )
         }
 
+        // Per-target outcomes of a package operation, the same terminal states as the paths above.
+        val packageOutcomes = when (operation.state) {
+            is OperationDisplay.State.Completed -> operation.state.report.packageOutcomes()
+            is OperationDisplay.State.Failed -> operation.state.report.packageOutcomes()
+            is OperationDisplay.State.Cancelled -> operation.state.report.packageOutcomes()
+            else -> emptyList()
+        }
+
+        if (packageOutcomes.isNotEmpty()) {
+            OperationPackagesSection(
+                outcomes = packageOutcomes,
+            )
+        }
+
         // Actions Section - only show if there are available actions
         val hasActions = onShowInHistory != null || when (operation.state) {
             is OperationDisplay.State.Running -> onCancel != null
@@ -193,6 +207,10 @@ private fun OperationDetailsHeader(
 /** Empty for a report shape that is not about paths, which this section has nothing to show for. */
 private fun Operation.Report?.pathChanges(): Collection<Operation.Report.Paths.PathChange> =
     (this as? Operation.Report.Paths)?.affectedPaths ?: emptyList()
+
+/** Empty for a report shape that is not about packages. */
+private fun Operation.Report?.packageOutcomes(): List<Operation.Report.Packages.Outcome> =
+    (this as? Operation.Report.Packages)?.outcomes ?: emptyList()
 
 // Helper functions
 private fun createMockReport(
@@ -338,5 +356,44 @@ private fun OperationDetailsSheetCompletedWithFilesPreview() {
         ),
         onDismiss = {},
         onShowInHistory = {},
+    )
+}
+
+@Preview2
+@ComposePreviewWrapper(ButlerPreviewWrapper::class)
+@Composable
+private fun OperationDetailsSheetCompletedWithPackagesPreview() {
+    OperationDetailsSheet(
+        operation = OperationDisplay(
+            id = Operation.Id(),
+            title = "Uninstall 3 apps".toCaString(),
+            description = "3 apps".toCaString(),
+            icon = Icons.TwoTone.Delete,
+            state = OperationDisplay.State.Completed(
+                summary = "2 of 3 done · 1 failed".toCaString(),
+                completedAt = Clock.System.now(),
+                report = Operation.Report.Packages(
+                    summary = "2 of 3 done · 1 failed".toCaString(),
+                    outcomes = listOf(
+                        Operation.Report.Packages.Outcome(
+                            label = "Chrome".toCaString(),
+                            status = Operation.Report.Packages.Outcome.Status.DONE,
+                        ),
+                        Operation.Report.Packages.Outcome(
+                            label = "System UI".toCaString(),
+                            status = Operation.Report.Packages.Outcome.Status.FAILED,
+                            error = IllegalStateException("Operation not permitted"),
+                        ),
+                        Operation.Report.Packages.Outcome(
+                            label = "Notes".toCaString(),
+                            status = Operation.Report.Packages.Outcome.Status.DONE,
+                        ),
+                    ),
+                ),
+            ),
+            kind = Operation.Metadata.Kind.UNINSTALL,
+            startedAt = Clock.System.now() - 1.minutes,
+        ),
+        onDismiss = {},
     )
 }

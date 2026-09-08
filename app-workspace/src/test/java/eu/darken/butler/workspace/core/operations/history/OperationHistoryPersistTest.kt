@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.test.core.app.ApplicationProvider
+import eu.darken.butler.common.ca.toCaString
 import eu.darken.butler.common.files.LocalPath
 import eu.darken.butler.workspace.core.Workspace
 import eu.darken.butler.workspace.core.operations.CompletedOperationSnapshot
@@ -211,6 +212,60 @@ class OperationHistoryPersistTest : BaseTest() {
         val stored = database.operationHistoryDao().getById(id)!!
         stored.entry.originType shouldBe HistoryEntry.OriginType.APPS.name
         stored.entry.originWorkspaceId shouldBe workspaceId.longTag
+    }
+
+    @Test
+    fun `a package report with a failed target is stored as PARTIAL`() = runTest {
+        val id = persist(
+            testSnapshot(
+                metadata = testMetadata(operationKind = Operation.Metadata.Kind.UNINSTALL),
+                state = TestCompletedState(
+                    report = Operation.Report.Packages(
+                        summary = "1 of 2 done".toCaString(),
+                        outcomes = listOf(
+                            Operation.Report.Packages.Outcome(
+                                label = "Chrome".toCaString(),
+                                status = Operation.Report.Packages.Outcome.Status.DONE,
+                            ),
+                            Operation.Report.Packages.Outcome(
+                                label = "System UI".toCaString(),
+                                status = Operation.Report.Packages.Outcome.Status.FAILED,
+                                error = IOException("Operation not permitted"),
+                            ),
+                        ),
+                    ),
+                ),
+            )
+        )
+
+        val stored = database.operationHistoryDao().getById(id)!!
+        stored.entry.outcome shouldBe HistoryOutcome.PARTIAL.name
+        stored.entry.partialErrorCount shouldBe 1
+    }
+
+    @Test
+    fun `a package operation stores no paths and no primary path`() = runTest {
+        val id = persist(
+            testSnapshot(
+                metadata = testMetadata(operationKind = Operation.Metadata.Kind.CLEAR_DATA),
+                state = TestCompletedState(
+                    report = Operation.Report.Packages(
+                        summary = "Data of Chrome cleared".toCaString(),
+                        outcomes = listOf(
+                            Operation.Report.Packages.Outcome(
+                                label = "Chrome".toCaString(),
+                                status = Operation.Report.Packages.Outcome.Status.DONE,
+                            ),
+                        ),
+                    ),
+                ),
+            )
+        )
+
+        val stored = database.operationHistoryDao().getById(id)!!
+        stored.paths.shouldBeEmpty()
+        stored.entry.affectedPathsCount shouldBe 0
+        stored.entry.primaryPath shouldBe null
     }
 
     @Test

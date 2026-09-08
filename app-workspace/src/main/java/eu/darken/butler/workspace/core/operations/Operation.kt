@@ -47,6 +47,8 @@ interface Operation {
          * Semantic intent override that refines the displayed label in history.
          * For example, a `MoveOperation` invoked as a rename should set `intent = RENAME` so the
          * history row reads "Renamed" instead of "Moved". Null = use the default label for `kind`.
+         * A [Kind.COMPONENTS] operation sets [Intent.ENABLE_COMPONENTS] or
+         * [Intent.DISABLE_COMPONENTS] so the history headline names the verb.
          */
         val intent: Intent? get() = null
 
@@ -87,9 +89,15 @@ interface Operation {
             REQUIRE_ORIGIN,
         }
 
-        enum class Kind { COPY, MOVE, DELETE, RESTORE, CREATE_FOLDER, CREATE_FILE, SAVE, COMPRESS, EXTRACT, INSTALL }
+        enum class Kind {
+            COPY, MOVE, DELETE, RESTORE, CREATE_FOLDER, CREATE_FILE, SAVE, COMPRESS, EXTRACT, INSTALL,
+            ENABLE, DISABLE, FORCE_STOP, UNINSTALL, CLEAR_DATA, COMPONENTS,
+        }
 
-        enum class Intent { RENAME, PASTE_COPY, PASTE_MOVE, DROP_COPY, DROP_MOVE }
+        enum class Intent {
+            RENAME, PASTE_COPY, PASTE_MOVE, DROP_COPY, DROP_MOVE,
+            ENABLE_COMPONENTS, DISABLE_COMPONENTS,
+        }
 
         sealed interface Origin {
             val workspaceId: Workspace.Id
@@ -136,7 +144,8 @@ interface Operation {
      *
      * Sealed so consumers can switch exhaustively over the report SHAPES. [Paths] is the
      * file-operation shape and is open, because every file operation refines it with its own
-     * counters. Further shapes are added beside it, in this file.
+     * counters. [Packages] is the package-operation shape. Further shapes are added beside them,
+     * in this file.
      */
     sealed interface Report {
         val summary: CaString
@@ -180,6 +189,23 @@ interface Operation {
                 enum class Change {
                     ADDED, REMOVED, MODIFIED, TRASHED, MOVED,
                 }
+            }
+        }
+
+        /** The shape of a report about packages or their components: one outcome per target, in order. */
+        data class Packages(
+            override val summary: CaString,
+            val outcomes: List<Outcome>,
+        ) : Report {
+            override val partialErrorCount: Int get() = outcomes.count { it.status == Outcome.Status.FAILED }
+
+            data class Outcome(
+                /** App label, or `label · component class` for a component. */
+                val label: CaString,
+                val status: Status,
+                val error: Throwable? = null,
+            ) {
+                enum class Status { DONE, FAILED, DECLINED }
             }
         }
     }
