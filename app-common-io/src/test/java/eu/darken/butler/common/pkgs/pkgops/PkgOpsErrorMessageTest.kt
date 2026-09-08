@@ -27,7 +27,7 @@ import testhelpers.coroutine.TestDispatcherProvider
 import testhelpers.coroutine.runTest2
 
 /**
- * The shell's reason for refusing an uninstall or a data wipe only reaches the user if it survives
+ * The shell's reason for refusing a package action only reaches the user if it survives
  * into the [PkgOpsException]'s own message: what renders an error reads the top-level message and
  * nothing from the cause chain.
  */
@@ -91,6 +91,47 @@ class PkgOpsErrorMessageTest : BaseTest() {
         val thrown = shouldThrow<PkgOpsException> { pkgOps.clearData(installId) }
 
         thrown.message!! shouldContain "Permission Denial"
+    }
+
+    @Test
+    fun `a refused component state change carries the reason`() = runTest2 {
+        failElevatedAccessWith("SecurityException: Shell cannot change component state for com.example.app")
+
+        val thrown = shouldThrow<PkgOpsException> {
+            pkgOps.changeComponentState(installId.pkgId, "com.example.app.MainActivity", enabled = false)
+        }
+
+        thrown.message!! shouldContain "Shell cannot change component state"
+    }
+
+    @Test
+    fun `a refused package state change carries the reason`() = runTest2 {
+        failElevatedAccessWith("`pm disable com.example.app` failed: Permission Denial")
+
+        val thrown = shouldThrow<PkgOpsException> {
+            pkgOps.changePackageState(installId.pkgId, enabled = false)
+        }
+
+        thrown.message!! shouldContain "Permission Denial"
+    }
+
+    @Test
+    fun `a refused force stop carries the reason`() = runTest2 {
+        failElevatedAccessWith("`am force-stop com.example.app` failed: Permission Denial")
+
+        val thrown = shouldThrow<PkgOpsException> { pkgOps.forceStop(installId.pkgId) }
+
+        thrown.message!! shouldContain "forceStop"
+        thrown.message!! shouldContain "Permission Denial"
+    }
+
+    @Test
+    fun `missing elevated access stays a bare message for a component state change`() = runTest2 {
+        val thrown = shouldThrow<PkgOpsException> {
+            pkgOps.changeComponentState(installId.pkgId, "com.example.app.MainActivity", enabled = false)
+        }
+
+        thrown.message!! shouldNotContain "unavailable"
     }
 
     @Test

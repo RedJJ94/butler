@@ -125,10 +125,13 @@ class PkgOps @Inject constructor(
         } catch (e: Exception) {
             if (e is ElevatedAccessUnavailableException) {
                 log(TAG, DEBUG) { "forceStop(...): $mode unavailable for $pkgId" }
-            } else {
-                log(TAG, WARN) { "forceStop($pkgId, mode=$mode) failed: $e" }
+                // No cause text: this branch is consumed by the caller's cause-walk, not rendered.
+                throw PkgOpsException(message = "forceStop($pkgId, $mode) failed", cause = e)
             }
-            throw PkgOpsException(message = "changePackageState($pkgId, $mode) failed", cause = e)
+            log(TAG, WARN) { "forceStop($pkgId, mode=$mode) failed: $e" }
+            // The cause's text carries the shell's reason and only survives here: what the user is
+            // shown renders the top-level message and nothing from the cause chain.
+            throw PkgOpsException(message = "forceStop($pkgId, $mode) failed: ${e.message}", cause = e)
         }
     }
 
@@ -312,10 +315,13 @@ class PkgOps @Inject constructor(
         } catch (e: Exception) {
             if (e is ElevatedAccessUnavailableException) {
                 log(TAG, DEBUG) { "changePackageState(...): $mode unavailable for $id" }
-            } else {
-                log(TAG, WARN) { "changePackageState($id, enabled=$enabled, mode=$mode) failed: $e" }
+                // No cause text: this branch is consumed by the caller's cause-walk, not rendered.
+                throw PkgOpsException(message = "changePackageState($id, $enabled, $mode) failed", cause = e)
             }
-            throw PkgOpsException(message = "changePackageState($id, $enabled, $mode) failed", cause = e)
+            log(TAG, WARN) { "changePackageState($id, enabled=$enabled, mode=$mode) failed: $e" }
+            // The cause's text carries the shell's reason and only survives here: what the user is
+            // shown renders the top-level message and nothing from the cause chain.
+            throw PkgOpsException(message = "changePackageState($id, $enabled, $mode) failed: ${e.message}", cause = e)
         }
     }
 
@@ -369,10 +375,19 @@ class PkgOps @Inject constructor(
         } catch (e: Exception) {
             if (e is ElevatedAccessUnavailableException) {
                 log(TAG, DEBUG) { "changeComponentState(...): $mode unavailable for $id" }
-            } else {
-                log(TAG, WARN) { "changeComponentState($id, $className, enabled=$enabled, mode=$mode) failed: $e" }
+                // No cause text: this branch is consumed by the caller's cause-walk, not rendered.
+                throw PkgOpsException(
+                    message = "changeComponentState($id, $className, $enabled, $mode) failed",
+                    cause = e,
+                )
             }
-            throw PkgOpsException(message = "changeComponentState($id, $className, $enabled, $mode) failed", cause = e)
+            log(TAG, WARN) { "changeComponentState($id, $className, enabled=$enabled, mode=$mode) failed: $e" }
+            // The cause's text carries the shell's reason and only survives here: what the user is
+            // shown renders the top-level message and nothing from the cause chain.
+            throw PkgOpsException(
+                message = "changeComponentState($id, $className, $enabled, $mode) failed: ${e.message}",
+                cause = e,
+            )
         }
     }
 
