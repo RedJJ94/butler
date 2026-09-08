@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.twotone.Delete
 import androidx.compose.material.icons.twotone.InstallMobile
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
@@ -17,11 +18,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.PreviewWrapper as ComposePreviewWrapper
 import androidx.compose.ui.unit.dp
+import eu.darken.butler.common.ca.CaString
 import eu.darken.butler.common.compose.ButlerPreviewWrapper
 import eu.darken.butler.common.compose.Preview2
 import eu.darken.butler.common.compose.asComposable
@@ -30,6 +33,7 @@ import eu.darken.butler.common.debug.logging.asLog
 import eu.darken.butler.common.debug.logging.log
 import eu.darken.butler.common.debug.logging.logTag
 import eu.darken.butler.common.pkgs.installer.AppInstallConfirmationIssue
+import eu.darken.butler.common.pkgs.uninstaller.AppUninstallConfirmationIssue
 import eu.darken.butler.common.io.R as IoR
 
 /**
@@ -42,6 +46,45 @@ fun AppInstallConfirmationIssueSheet(
     onConfirmed: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    SystemConfirmationIssueSheet(
+        modifier = modifier,
+        title = issue.title,
+        description = issue.description,
+        actionLabel = stringResource(IoR.string.app_install_confirm_pending_action),
+        actionIcon = Icons.TwoTone.InstallMobile,
+        confirmIntent = issue.confirmIntent,
+        onConfirmed = onConfirmed,
+    )
+}
+
+/** The removal counterpart, for the confirmation `SystemUninstaller` is waiting on. */
+@Composable
+fun AppUninstallConfirmationIssueSheet(
+    issue: AppUninstallConfirmationIssue,
+    onConfirmed: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    SystemConfirmationIssueSheet(
+        modifier = modifier,
+        title = issue.title,
+        description = issue.description,
+        actionLabel = stringResource(IoR.string.app_uninstall_confirm_pending_action),
+        actionIcon = Icons.TwoTone.Delete,
+        confirmIntent = issue.confirmIntent,
+        onConfirmed = onConfirmed,
+    )
+}
+
+@Composable
+private fun SystemConfirmationIssueSheet(
+    modifier: Modifier = Modifier,
+    title: CaString,
+    description: CaString,
+    actionLabel: String,
+    actionIcon: ImageVector,
+    confirmIntent: Intent,
+    onConfirmed: () -> Unit,
+) {
     val context = LocalContext.current
     Column(
         modifier = modifier
@@ -51,7 +94,7 @@ fun AppInstallConfirmationIssueSheet(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
-            text = issue.title.asComposable(),
+            text = title.asComposable(),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
         )
@@ -60,7 +103,7 @@ fun AppInstallConfirmationIssueSheet(
 
         Text(
             modifier = Modifier.padding(bottom = 8.dp),
-            text = issue.description.asComposable(),
+            text = description.asComposable(),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -69,9 +112,9 @@ fun AppInstallConfirmationIssueSheet(
             modifier = Modifier.fillMaxWidth(),
             onClick = {
                 try {
-                    context.startActivity(issue.confirmIntent)
+                    context.startActivity(confirmIntent)
                 } catch (e: Exception) {
-                    log(TAG, ERROR) { "Failed to re-open the install confirmation: ${e.asLog()}" }
+                    log(TAG, ERROR) { "Failed to re-open the system confirmation: ${e.asLog()}" }
                 }
                 onConfirmed()
             },
@@ -81,11 +124,11 @@ fun AppInstallConfirmationIssueSheet(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
-                    imageVector = Icons.TwoTone.InstallMobile,
+                    imageVector = actionIcon,
                     contentDescription = null,
                     modifier = Modifier.size(18.dp),
                 )
-                Text(text = stringResource(IoR.string.app_install_confirm_pending_action))
+                Text(text = actionLabel)
             }
         }
     }
@@ -101,4 +144,14 @@ private fun AppInstallConfirmationIssueSheetPreview() {
     )
 }
 
-private val TAG = logTag("Workspace", "AppInstallConfirmationSheet")
+@Preview2
+@ComposePreviewWrapper(ButlerPreviewWrapper::class)
+@Composable
+private fun AppUninstallConfirmationIssueSheetPreview() {
+    AppUninstallConfirmationIssueSheet(
+        issue = AppUninstallConfirmationIssue(label = "Example App", confirmIntent = Intent()),
+        onConfirmed = {},
+    )
+}
+
+private val TAG = logTag("Workspace", "SystemConfirmationSheet")

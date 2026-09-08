@@ -19,6 +19,7 @@ import eu.darken.butler.common.files.local.LocalPathLookup
 import eu.darken.butler.common.files.metadata.FileType
 import eu.darken.butler.common.issue.Issue
 import eu.darken.butler.common.pkgs.installer.AppInstallConfirmationIssue
+import eu.darken.butler.common.pkgs.uninstaller.AppUninstallConfirmationIssue
 import eu.darken.butler.workspace.R
 import eu.darken.butler.workspace.ui.bottomsheet.PaneScopedBottomSheet
 import kotlin.time.Instant
@@ -82,6 +83,10 @@ fun IssuesBottomSheet(
                 // Resolved by launching an intent rather than by a resolution: the answer belongs to
                 // Android's own dialog, and the operation leaves Waiting once that dialog reports.
                 is AppInstallConfirmationIssue -> AppInstallConfirmationIssueSheet(
+                    issue = issue,
+                    onConfirmed = onDismiss,
+                )
+                is AppUninstallConfirmationIssue -> AppUninstallConfirmationIssueSheet(
                     issue = issue,
                     onConfirmed = onDismiss,
                 )

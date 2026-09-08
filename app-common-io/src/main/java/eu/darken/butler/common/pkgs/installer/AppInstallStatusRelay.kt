@@ -14,6 +14,9 @@ import javax.inject.Singleton
  * Carries `PackageInstaller` status callbacks from [AppInstallStatusReceiver] back to the install
  * that started them. [Status.requestId] is generated per session, so a stale callback from an
  * earlier install can never be mistaken for the current one.
+ *
+ * [eu.darken.butler.common.pkgs.uninstaller.SystemUninstaller] shares this channel: a removal
+ * reports through the same `PackageInstaller` status contract under its own request id.
  */
 @Singleton
 class AppInstallStatusRelay @Inject constructor() {
