@@ -74,6 +74,8 @@ fun AppDetailsToolbarCard(
     app: AppInfo?,
     design: WorkspaceDesign,
     collapsedFraction: Float = 0f,
+    /** Names the app while there is no package to read a label from, e.g. after it was removed. */
+    fallbackTitle: String? = null,
     subtitle: String? = null,
     onBackClick: (() -> Unit)? = null,
     backContentDescription: String? = null,
@@ -87,6 +89,7 @@ fun AppDetailsToolbarCard(
     val context = LocalContext.current
     val isCollapsed = collapsedFraction > 0.5f
     val title = app?.label?.get(context)?.takeIf { it.isNotBlank() }
+        ?: fallbackTitle?.takeIf { it.isNotBlank() }
     // Only a sub-screen with a named app has two things to say; everything else is one line.
     val isTwoLine = !isCollapsed && !searchActive && title != null && subtitle != null
 

@@ -90,6 +90,8 @@ class AppDetailsWorkspaceStoragePathsTest {
         rootManager = mockk<RootManager> { every { useRoot } returns useRootFlow },
         adbManager = mockk<AdbManager> { every { useAdb } returns flowOf(false) },
         workspaceRemote = mockk(relaxed = true),
+        operationsManager = mockk(relaxed = true),
+        operationFactory = mockk(),
     )
 
     private fun TestScope.pathsOf(workspace: AppDetailsWorkspace): List<AppPath> {

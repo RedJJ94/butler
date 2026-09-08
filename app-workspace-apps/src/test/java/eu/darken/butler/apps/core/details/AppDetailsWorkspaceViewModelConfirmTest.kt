@@ -5,10 +5,13 @@ import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
 import eu.darken.butler.apps.core.details.components.ComponentsData
 import eu.darken.butler.apps.ui.apps.preview.AppsMockDataProvider
+import eu.darken.butler.apps.core.operations.PackageCommand
 import eu.darken.butler.apps.ui.details.AppDetailsConfirmRequest
 import eu.darken.butler.workspace.core.Workspace
 import eu.darken.butler.workspace.core.WorkspaceProvider
 import eu.darken.butler.workspace.core.WorkspaceRemote
+import eu.darken.butler.workspace.core.operations.OperationFocusRequest
+import eu.darken.butler.workspace.ui.operations.OperationsDisplayState
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.coEvery
@@ -50,6 +53,8 @@ class AppDetailsWorkspaceViewModelConfirmTest {
         )
         workspace = mockk<AppDetailsWorkspace>(relaxed = true).apply {
             every { state } returns workspaceState
+            // A relaxed mock answers a nullable object return with a chained mock, not null.
+            coEvery { submit(any()) } returns null
         }
         val id = Workspace.Id()
         return AppDetailsWorkspaceViewModel(
@@ -58,11 +63,17 @@ class AppDetailsWorkspaceViewModelConfirmTest {
             dispatchers = TestDispatcherProvider(),
             workspaceProvider = mockk<WorkspaceProvider> { every { retrieve(id) } returns flowOf(workspace) },
             workspaceRemote = mockk<WorkspaceRemote>(relaxed = true),
-            appSizeCache = mockk(relaxed = true),
             componentsLoader = mockk(relaxed = true) {
                 coEvery { load(any()) } returns ComponentsData()
                 coEvery { resolveEnabledStates(any()) } returns emptyMap()
             },
+            chromeFactory = mockk {
+                every { create(any(), any()) } returns mockk(relaxed = true) {
+                    every { operations } returns flowOf(OperationsDisplayState())
+                    every { pendingConflicts } returns flowOf(emptyMap())
+                }
+            },
+            operationFocusRequest = OperationFocusRequest(),
         )
     }
 
@@ -75,7 +86,7 @@ class AppDetailsWorkspaceViewModelConfirmTest {
         vm.onClearData(appInfo)
 
         vm.appConfirm.value.shouldBeInstanceOf<AppDetailsConfirmRequest.ClearData>()
-        coVerify(exactly = 0) { workspace.clearDataApp(any()) }
+        coVerify(exactly = 0) { workspace.submit(any()) }
     }
 
     @Test
@@ -88,7 +99,7 @@ class AppDetailsWorkspaceViewModelConfirmTest {
         // The dialog's callback can be delivered twice before it leaves composition.
         vm.onAppConfirm(request)
 
-        coVerify(exactly = 1) { workspace.clearDataApp(appInfo) }
+        coVerify(exactly = 1) { workspace.submit(match { it is PackageCommand.ClearData }) }
         vm.appConfirm.value shouldBe null
     }
 
@@ -99,29 +110,34 @@ class AppDetailsWorkspaceViewModelConfirmTest {
         vm.onUninstall(appInfo)
 
         vm.appConfirm.value.shouldBeInstanceOf<AppDetailsConfirmRequest.Uninstall>()
-        coVerify(exactly = 0) { workspace.uninstallApp(any()) }
+        coVerify(exactly = 0) { workspace.submit(any()) }
     }
 
     @Test
-    fun `a confirmed uninstall is dispatched`() = runTest {
+    fun `an elevated uninstall is confirmed first, then submitted`() = runTest {
         val vm = createVM(hasRoot = true)
         vm.onUninstall(appInfo)
 
         vm.onAppConfirm(vm.appConfirm.value!!)
 
-        coVerify(exactly = 1) { workspace.uninstallApp(appInfo) }
+        coVerify(exactly = 1) {
+            workspace.submit(match { it is PackageCommand.Uninstall && !it.viaSystemDialog })
+        }
     }
 
     /** Without elevated access Android's own dialog is the confirmation, so Butler must not add one. */
     @Test
-    fun `without elevated access the system dialog does the asking`() = runTest {
+    fun `an uninstall without elevated access submits a system uninstall`() = runTest {
         val vm = createVM(hasRoot = false, hasAdb = false)
 
         vm.onUninstall(appInfo)
 
         vm.appConfirm.value shouldBe null
-        coVerify(exactly = 0) { workspace.uninstallApp(any()) }
-        nextStartedActivity()?.action shouldBe Intent.ACTION_DELETE
+        coVerify(exactly = 1) {
+            workspace.submit(match { it is PackageCommand.Uninstall && it.viaSystemDialog })
+        }
+        // The dialog belongs to the operation now, not to a fire-and-forget intent.
+        nextStartedActivity() shouldBe null
     }
 
     @Test
@@ -143,6 +159,6 @@ class AppDetailsWorkspaceViewModelConfirmTest {
         workspaceState.value = AppDetailsWorkspace.State(appState = AppInfoState.Gone)
         vm.onAppConfirm(stale)
 
-        coVerify(exactly = 0) { workspace.clearDataApp(any()) }
+        coVerify(exactly = 0) { workspace.submit(any()) }
     }
 }

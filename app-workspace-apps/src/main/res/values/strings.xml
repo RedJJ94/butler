@@ -142,6 +142,9 @@
 
     <!-- App Details package data -->
     <string name="apps_details_pkgdata_error_title">Could not load app data</string>
+    <string name="apps_details_gone_title">App removed</string>
+    <string name="apps_details_gone_message">This app is no longer installed on this device.</string>
+    <string name="apps_details_gone_close_action">Close</string>
     <string name="apps_details_uninstalled_title">Uninstalled for this user</string>
     <string name="apps_details_uninstalled_message">The app is no longer installed for this user, but its files are still on the device.</string>
 

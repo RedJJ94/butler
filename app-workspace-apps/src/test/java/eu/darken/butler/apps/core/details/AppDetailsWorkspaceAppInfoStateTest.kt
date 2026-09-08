@@ -82,6 +82,8 @@ class AppDetailsWorkspaceAppInfoStateTest {
         rootManager = mockk<RootManager> { every { useRoot } returns flowOf(false) },
         adbManager = mockk<AdbManager> { every { useAdb } returns flowOf(false) },
         workspaceRemote = workspaceRemote,
+        operationsManager = mockk(relaxed = true),
+        operationFactory = mockk(),
     )
 
     private fun TestScope.statesOf(
@@ -132,16 +134,18 @@ class AppDetailsWorkspaceAppInfoStateTest {
         seen.last().appState.shouldBeInstanceOf<AppInfoState.SourceError>().error shouldBe boom
     }
 
+    /** The receipt of the uninstall that removed it lives on this tab, so the tab has to stay. */
     @Test
-    fun `the workspace closes once the package is gone`() = runTest {
+    fun `a gone package keeps the workspace open`() = runTest {
         val workspace = createWorkspace()
+        val seen = statesOf(workspace) {
+            pkgData.tryEmit(PkgRepo.PkgData.from(listOf(installed)))
+            advanceUntilIdle()
+            pkgData.tryEmit(PkgRepo.PkgData.from(emptyList()))
+        }
 
-        pkgData.tryEmit(PkgRepo.PkgData.from(listOf(installed)))
-        advanceUntilIdle()
-        pkgData.tryEmit(PkgRepo.PkgData.from(emptyList()))
-        advanceUntilIdle()
-
-        coVerify { workspaceRemote.execute(any<WorkspaceAction.Close>()) }
+        seen.last().isGone shouldBe true
+        coVerify(exactly = 0) { workspaceRemote.execute(any<WorkspaceAction.Close>()) }
     }
 
     @Test

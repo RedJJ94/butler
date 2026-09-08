@@ -13,7 +13,8 @@ import dagger.multibindings.IntoMap
 import eu.darken.butler.apps.R
 import eu.darken.butler.apps.core.AppPath
 import eu.darken.butler.apps.core.AppSizeCache
-import eu.darken.butler.apps.core.details.components.ComponentEntry
+import eu.darken.butler.apps.core.operations.PackageActionOperation
+import eu.darken.butler.apps.core.operations.PackageCommand
 import eu.darken.butler.apps.core.details.components.ComponentToggleAvailability
 import eu.darken.butler.apps.core.details.components.ComponentToggleState
 import eu.darken.butler.common.adb.AdbManager
@@ -33,8 +34,6 @@ import eu.darken.butler.common.pkgs.PkgRepo
 import eu.darken.butler.common.pkgs.apk.ApkArchiveParser
 import eu.darken.butler.common.pkgs.features.SourceAvailable
 import eu.darken.butler.common.pkgs.pkgops.PkgOps
-import eu.darken.butler.common.pkgs.pkgops.PkgOpsException
-import eu.darken.butler.common.pkgs.toPkgId
 import eu.darken.butler.common.root.RootManager
 import eu.darken.butler.permissions.core.PathPermissionCheck
 import eu.darken.butler.permissions.core.PathRequirements
@@ -42,12 +41,17 @@ import eu.darken.butler.setup.core.SetupModule
 import eu.darken.butler.workspace.contracts.apps.AppDetailsArguments
 import eu.darken.butler.workspace.contracts.apps.DetailTab
 import eu.darken.butler.workspace.core.Workspace
-import eu.darken.butler.workspace.core.WorkspaceAction
 import eu.darken.butler.workspace.core.WorkspaceDisplay
 import eu.darken.butler.workspace.core.WorkspaceFactory
 import eu.darken.butler.workspace.core.WorkspaceRemote
 import eu.darken.butler.workspace.core.WorkspaceTypeKey
 import eu.darken.butler.workspace.core.initialInfo
+import eu.darken.butler.workspace.core.operations.ManagedOperation
+import eu.darken.butler.workspace.core.operations.Operation
+import eu.darken.butler.workspace.core.operations.OperationsManager
+import eu.darken.butler.workspace.core.operations.current
+import eu.darken.butler.workspace.core.operations.operationsForWorkspace
+import eu.darken.butler.workspace.core.operations.withOnlyStateChanges
 import eu.darken.butler.workspace.core.isPausableAsChild
 import eu.darken.butler.workspace.core.label
 import eu.darken.butler.workspace.core.stateInWorkspace
@@ -71,11 +75,11 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.serializer
-import java.util.concurrent.atomic.AtomicBoolean
 
 class AppDetailsWorkspace @AssistedInject constructor(
     @Assisted override val id: Workspace.Id,
@@ -91,6 +95,8 @@ class AppDetailsWorkspace @AssistedInject constructor(
     private val rootManager: RootManager,
     private val adbManager: AdbManager,
     private val workspaceRemote: WorkspaceRemote,
+    private val operationsManager: OperationsManager,
+    private val operationFactory: PackageActionOperation.Factory,
 ) : Workspace<AppDetailsArguments> {
 
     private val tag = logTag("AppDetails", "Workspace", id.shortTag)
@@ -123,12 +129,13 @@ class AppDetailsWorkspace @AssistedInject constructor(
         get() = listOf(selectedTabFlow.value, cachedAppLabel)
 
     private val selectedTabFlow = MutableStateFlow(args.initialTab)
-    private var wasAppSeen = false
 
     // Fetch app info from package manager; shared so `state` and `info` collect the repo once.
     // Built from `data` rather than `pkgs()`: `catch` is terminal, so a source error would end the
     // flow for good and leave the workspace stuck with no way to retry. Reading `error` first keeps
     // `pkgs` - which throws while an error is set - out of reach until it cannot throw.
+    // A gone package is a page state, not a close: the page shows an end state with a Close action
+    // so an uninstall's receipt stays reachable on the tab that produced it.
     private val appInfoFlow: StateFlow<AppInfoState> = pkgRepo.data
         .map { data ->
             data.error?.let { error ->
@@ -302,21 +309,80 @@ class AppDetailsWorkspace @AssistedInject constructor(
     }
 
     /**
-     * Number of package operations (enable/disable/uninstall/clear/component toggle) currently
-     * running. Package operations don't go through OperationsManager, so this is the only signal
-     * that keeps a pause from releasing the workspace mid-operation.
+     * What this workspace's own operations add up to, recomputed on every state change.
      *
-     * Declared before [state], which reads it: properties initialise in declaration order.
+     * A snapshot rather than the operation list itself: [withOnlyStateChanges] re-emits the SAME
+     * list instance when an operation changes state, so a StateFlow of that list would conflate
+     * every transition away and freeze the counts.
+     *
+     * Declared before [state] and [info], which read it: properties initialise in declaration order.
      */
-    private val pkgOpsInFlight = MutableStateFlow(0)
+    private data class OwnOps(
+        val unfinished: Int,
+        /** Component toggles excluded: they never block an app-wide action, or each other. */
+        val unfinishedAppWide: Int,
+        val attention: Int,
+    )
 
-    private suspend fun <T> trackPkgOp(block: suspend () -> T): T {
-        pkgOpsInFlight.update { it + 1 }
-        try {
-            return block()
-        } finally {
-            pkgOpsInFlight.update { it - 1 }
+    private val ownOps: StateFlow<OwnOps> = operationsManager.operationsForWorkspace(id)
+        .withOnlyStateChanges()
+        .map { operations ->
+            var unfinished = 0
+            var unfinishedAppWide = 0
+            var attention = 0
+            operations.forEach { operation ->
+                val isAppWide = operation.metadata.kind != Operation.Metadata.Kind.COMPONENTS
+                when (val state = operation.state.value) {
+                    is Operation.State.Queued, is Operation.State.Active -> {
+                        unfinished++
+                        if (isAppWide) unfinishedAppWide++
+                    }
+
+                    is Operation.State.Waiting -> {
+                        unfinished++
+                        if (isAppWide) unfinishedAppWide++
+                        attention++
+                    }
+
+                    is Operation.State.Completed -> {
+                        if (state.error != null && state.error !is CancellationException) attention++
+                    }
+                }
+            }
+            OwnOps(unfinished = unfinished, unfinishedAppWide = unfinishedAppWide, attention = attention)
         }
+        .stateIn(scope, SharingStarted.Eagerly, OwnOps(0, 0, 0))
+
+    /**
+     * Rejects a second app-wide package action while one is running. The rows going disabled is
+     * feedback only - two taps can both be delivered before a recomposition, so this is what
+     * actually stops the second one. The check and the submit share a lock, otherwise two callers
+     * could both pass the check before either had submitted.
+     *
+     * Component toggles stay out of it: they have their own selection and confirmation flow, and
+     * one lock across both would let a component toggle block an uninstall.
+     */
+    private val submitLock = Mutex()
+
+    suspend fun submit(command: PackageCommand): ManagedOperation? = submitLock.withLock {
+        if (command !is PackageCommand.SetComponents) {
+            val running = operationsManager.current().filter {
+                it.metadata.origin.workspaceId == id &&
+                    it.isUnfinished &&
+                    it.metadata.kind != Operation.Metadata.Kind.COMPONENTS
+            }
+            if (running.isNotEmpty()) {
+                log(tag, WARN) { "submit($command) rejected, another package action is still running" }
+                return@withLock null
+            }
+        }
+        log(tag) { "submit($command)" }
+        operationsManager.submitManaged(
+            operationFactory.create(
+                actionOrigin = Operation.Metadata.Origin.Apps(id),
+                command = command,
+            )
+        )
     }
 
     data class State(
@@ -331,9 +397,12 @@ class AppDetailsWorkspace @AssistedInject constructor(
         val componentToggleState: ComponentToggleState = ComponentToggleState.UNSUPPORTED,
         val packageInfo: PackageInfoState = PackageInfoState.Loading,
         val isPkgActionRunning: Boolean = false,
+        /** Survives the package going away, so a gone page still names the app it was about. */
+        val title: CaString = CaString.EMPTY,
     ) {
         val app: AppInfo? get() = (appState as? AppInfoState.Ready)?.info
         val isLoading: Boolean get() = appState is AppInfoState.Loading
+        val isGone: Boolean get() = appState is AppInfoState.Gone
         val canEnableDisable: Boolean get() = hasRoot || hasAdb
         val canForceStop: Boolean get() = hasRoot || hasAdb
         val canClearData: Boolean get() = hasRoot || hasAdb
@@ -350,9 +419,9 @@ class AppDetailsWorkspace @AssistedInject constructor(
         _sizeLoading,
         packageInfoLoader.state,
         pathInsights,
-        pkgOpsInFlight,
+        ownOps,
     ) { appState, selectedTab, hasRoot, hasAdb, componentToggleState, sizeSnapshot, sizesAvailable, isLoadingSize,
-        packageInfo, insights, opsInFlight ->
+        packageInfo, insights, ownOps ->
         val withSize = when (appState) {
             is AppInfoState.Ready -> when (val size = sizeSnapshot.sizes[appState.info.installId]) {
                 null -> appState
@@ -379,7 +448,8 @@ class AppDetailsWorkspace @AssistedInject constructor(
             hasAdb = hasAdb,
             componentToggleState = componentToggleState,
             packageInfo = packageInfo,
-            isPkgActionRunning = opsInFlight > 0,
+            isPkgActionRunning = ownOps.unfinishedAppWide > 0,
+            title = (cachedAppLabel ?: args.packageName).toCaString(),
         )
     }
 
@@ -390,18 +460,20 @@ class AppDetailsWorkspace @AssistedInject constructor(
     override val info: StateFlow<Workspace.Info> = combine(
         appInfoOrNull,
         selectedTabFlow,
-        pkgOpsInFlight,
-    ) { app, _, opsInFlight ->
-        val label = normalizedAppLabel(app?.label?.get(context), args.packageName)
+        ownOps,
+    ) { app, _, ownOps ->
+        // Falls back to the cached label, so a package that is gone keeps the tab title and
+        // subtitle it had while it was there.
+        val label = normalizedAppLabel(app?.label?.get(context), args.packageName) ?: cachedAppLabel
         Workspace.Info(
             id = id,
             type = type,
             title = label?.toCaString() ?: seedDisplay.title ?: type.label,
             subtitle = label?.let { args.packageName.toCaString() },
             lifecycleState = Workspace.LifecycleState.Ready,
-            operationCount = 0,
-            attentionCount = 0,
-            isPausable = opsInFlight == 0,
+            operationCount = ownOps.unfinished,
+            attentionCount = ownOps.attention,
+            isPausable = ownOps.unfinished == 0,
             callerWorkspaceId = args.callerWorkspaceId,
             modalPresentation = args.modalPresentation,
             // Built by hand instead of via initialInfo(), so the relationship fields have to be
@@ -456,101 +528,6 @@ class AppDetailsWorkspace @AssistedInject constructor(
         pkgRepo.refresh()
     }
 
-    // Package operations live here, not on the ViewModel, so pkgOpsInFlight actually covers them.
-    // Exceptions propagate to the caller, which owns error surfacing and any fallback.
-
-    /**
-     * Rejects a second app-wide package action while one is running. The rows going disabled is
-     * feedback only - two taps can both be delivered before a recomposition, so this is what
-     * actually stops the second one.
-     *
-     * Component toggles stay out of it: they have their own selection and confirmation flow, and
-     * one lock across both would let a component toggle block an uninstall.
-     */
-    private val pkgActionRunning = AtomicBoolean(false)
-
-    private suspend fun singleFlightPkgOp(name: String, block: suspend () -> Unit) {
-        if (!pkgActionRunning.compareAndSet(false, true)) {
-            log(tag, WARN) { "$name rejected, another package action is still running" }
-            return
-        }
-        try {
-            block()
-        } finally {
-            pkgActionRunning.set(false)
-        }
-    }
-
-    suspend fun uninstallApp(app: AppInfo) = singleFlightPkgOp("uninstallApp(${app.packageName})") {
-        trackPkgOp {
-            log(tag) { "uninstallApp(${app.packageName})" }
-            pkgOps.uninstall(app.installId)
-            refreshAfterPkgOp()
-        }
-    }
-
-    // No refresh: a force-stop changes no package data, and every refresh re-gathers every source.
-    suspend fun forceStopApp(app: AppInfo) = singleFlightPkgOp("forceStopApp(${app.packageName})") {
-        trackPkgOp {
-            log(tag) { "forceStopApp(${app.packageName})" }
-            pkgOps.forceStop(app.id)
-        }
-    }
-
-    suspend fun clearDataApp(app: AppInfo) = singleFlightPkgOp("clearDataApp(${app.packageName})") {
-        trackPkgOp {
-            log(tag) { "clearDataApp(${app.packageName})" }
-            pkgOps.clearData(app.installId)
-            refreshAfterPkgOp()
-        }
-    }
-
-    suspend fun setAppEnabled(app: AppInfo, enabled: Boolean) =
-        singleFlightPkgOp("setAppEnabled(${app.packageName}, enabled=$enabled)") {
-            trackPkgOp {
-                log(tag) { "setAppEnabled(${app.packageName}, enabled=$enabled)" }
-                pkgOps.changePackageState(app.id, enabled = enabled)
-                refreshAfterPkgOp()
-            }
-        }
-
-    /**
-     * Deliberately not in a `finally`: [PkgRepo.refresh] rethrows a source error, which would then
-     * replace the operation's own failure. A failure here is swallowed because the operation itself
-     * succeeded, and the source error still reaches the screen through [state].
-     */
-    private suspend fun refreshAfterPkgOp() {
-        try {
-            pkgRepo.refresh()
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            log(tag, WARN) { "Refresh after package operation failed: ${e.asLog()}" }
-        }
-    }
-
-    suspend fun setComponentsEnabled(entries: List<ComponentEntry>, enabled: Boolean) = trackPkgOp {
-        log(tag) { "setComponentsEnabled(${entries.size} components, enabled=$enabled)" }
-        val failures = mutableListOf<Pair<ComponentEntry, Exception>>()
-        entries.forEach { entry ->
-            try {
-                pkgOps.changeComponentState(entry.packageName.toPkgId(), entry.className, enabled = enabled)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                log(tag, WARN) { "Failed to set ${entry.className} to enabled=$enabled: $e" }
-                failures.add(entry to e)
-            }
-        }
-        if (failures.isNotEmpty()) {
-            val verb = if (enabled) "enable" else "disable"
-            throw PkgOpsException(
-                "Failed to $verb ${failures.size}/${entries.size} components",
-                failures.first().second,
-            )
-        }
-    }
-
     override suspend fun release() {
         log(tag, INFO) { "Releasing AppDetailsWorkspace: $id" }
         scope.cancel()
@@ -563,26 +540,11 @@ class AppDetailsWorkspace @AssistedInject constructor(
         // through updateSelectedTab - without this the route would stay on its spinner forever.
         if (args.initialTab == DetailTab.PACKAGE_INFO) packageInfoLoader.onRequested()
 
-        // Auto-close when the package is removed (e.g. after uninstall)
-        // Only close after app was seen at least once (to avoid closing during initial load)
         appInfoFlow
             .onEach { appState ->
                 // Only ever upgrades: a gone package must not erase the cached label.
                 normalizedAppLabel((appState as? AppInfoState.Ready)?.info?.label?.get(context), args.packageName)
                     ?.let { cachedAppLabel = it }
-
-                when (appState) {
-                    is AppInfoState.Ready -> wasAppSeen = true
-
-                    AppInfoState.Gone -> if (wasAppSeen) {
-                        log(tag, INFO) { "Package ${args.packageName} removed, auto-closing workspace" }
-                        workspaceRemote.execute(WorkspaceAction.Close(id))
-                    }
-
-                    // Neither says the package is gone, and closing on a source error would take
-                    // the screen away from the user with nothing left to retry from.
-                    AppInfoState.Loading, is AppInfoState.SourceError -> Unit
-                }
             }
             .launchIn(scope)
 

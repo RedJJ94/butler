@@ -223,6 +223,17 @@ class PackageActionOperationTest : BaseTest() {
         coVerify(exactly = 1) { appSizeCache.invalidate(any()) }
     }
 
+    /** The command already happened; the source error reaches the screen through PkgRepo's state. */
+    @Test
+    fun `a failing refresh does not fail the run`() = runTest2 {
+        coEvery { pkgRepo.refresh() } throws IOException("Package source unavailable")
+
+        val completed = run(PackageCommand.Enable(listOf(target("a")))).completed()
+
+        completed.error shouldBe null
+        completed.packages().outcomes.single().status shouldBe Operation.Report.Packages.Outcome.Status.DONE
+    }
+
     @Test
     fun `a component batch reports one outcome per component`() = runTest2 {
         val entries = listOf(
