@@ -12,6 +12,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import eu.darken.butler.apps.R
 import eu.darken.butler.apps.core.AppSizeCache
+import eu.darken.butler.apps.core.apkExportFileName
 import eu.darken.butler.apps.core.details.components.AppComponentsController
 import eu.darken.butler.apps.core.details.components.AppComponentsLoader
 import eu.darken.butler.apps.core.details.components.ComponentEntry
@@ -356,6 +357,14 @@ class AppDetailsWorkspaceViewModel @AssistedInject constructor(
                 type = Workspace.Type.SAVER,
                 arguments = SaverArguments.Default(
                     sourceUris = listOf(apkUri),
+                    sourceNames = listOf(
+                        apkExportFileName(
+                            label = app.label.get(context),
+                            packageName = app.packageName,
+                            versionName = app.versionName,
+                            versionCode = app.versionCode,
+                        )
+                    ),
                     callerPackage = null,
                     callerWorkspaceId = id,
                 ),
