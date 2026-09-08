@@ -42,6 +42,33 @@ internal val Operation.Metadata.Kind.labelRes: Int
         Operation.Metadata.Kind.COMPONENTS -> R.string.history_filter_kind_components
     }
 
+/**
+ * Package operations report per-app outcomes instead of path changes, so the detail sheet and the
+ * share text render a different section for them.
+ */
+internal val Operation.Metadata.Kind.isPackageKind: Boolean
+    get() = when (this) {
+        Operation.Metadata.Kind.ENABLE,
+        Operation.Metadata.Kind.DISABLE,
+        Operation.Metadata.Kind.FORCE_STOP,
+        Operation.Metadata.Kind.UNINSTALL,
+        Operation.Metadata.Kind.CLEAR_DATA,
+        Operation.Metadata.Kind.COMPONENTS,
+            -> true
+
+        Operation.Metadata.Kind.COPY,
+        Operation.Metadata.Kind.MOVE,
+        Operation.Metadata.Kind.DELETE,
+        Operation.Metadata.Kind.CREATE_FILE,
+        Operation.Metadata.Kind.CREATE_FOLDER,
+        Operation.Metadata.Kind.SAVE,
+        Operation.Metadata.Kind.COMPRESS,
+        Operation.Metadata.Kind.EXTRACT,
+        Operation.Metadata.Kind.RESTORE,
+        Operation.Metadata.Kind.INSTALL,
+            -> false
+    }
+
 @get:StringRes
 internal val HistoryEntry.OriginType.labelRes: Int
     get() = when (this) {

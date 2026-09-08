@@ -132,6 +132,7 @@ class OperationHistoryPersistTest : BaseTest() {
                     sortIndex = index,
                 )
             },
+            packages = emptyList(),
             maxItems = 1000,
         )
     }
@@ -241,6 +242,118 @@ class OperationHistoryPersistTest : BaseTest() {
         val stored = database.operationHistoryDao().getById(id)!!
         stored.entry.outcome shouldBe HistoryOutcome.PARTIAL.name
         stored.entry.partialErrorCount shouldBe 1
+
+        // The per-app outcomes are the only record a package operation leaves behind.
+        val entry = repo.observeEntry(id).first()!!
+        entry.packages shouldContainExactly listOf(
+            HistoryEntry.PackageOutcome(
+                label = "Chrome",
+                status = Operation.Report.Packages.Outcome.Status.DONE,
+                errorMessage = null,
+            ),
+            HistoryEntry.PackageOutcome(
+                label = "System UI",
+                status = Operation.Report.Packages.Outcome.Status.FAILED,
+                errorMessage = "Operation not permitted",
+            ),
+        )
+    }
+
+    @Test
+    fun `a declined target keeps its position and status`() = runTest {
+        val id = persist(
+            testSnapshot(
+                metadata = testMetadata(operationKind = Operation.Metadata.Kind.DISABLE),
+                state = TestCompletedState(
+                    report = Operation.Report.Packages(
+                        summary = "1 of 3 done".toCaString(),
+                        outcomes = listOf(
+                            Operation.Report.Packages.Outcome(
+                                label = "Notes".toCaString(),
+                                status = Operation.Report.Packages.Outcome.Status.DECLINED,
+                            ),
+                            Operation.Report.Packages.Outcome(
+                                label = "Chrome".toCaString(),
+                                status = Operation.Report.Packages.Outcome.Status.DONE,
+                            ),
+                            Operation.Report.Packages.Outcome(
+                                label = "System UI".toCaString(),
+                                status = Operation.Report.Packages.Outcome.Status.FAILED,
+                                error = IOException("Operation not permitted"),
+                            ),
+                        ),
+                    ),
+                ),
+            )
+        )
+
+        val entry = repo.observeEntry(id).first()!!
+        entry.packages.map { it.label } shouldContainExactly listOf("Notes", "Chrome", "System UI")
+        entry.packages.map { it.status } shouldContainExactly listOf(
+            Operation.Report.Packages.Outcome.Status.DECLINED,
+            Operation.Report.Packages.Outcome.Status.DONE,
+            Operation.Report.Packages.Outcome.Status.FAILED,
+        )
+    }
+
+    @Test
+    fun `every package outcome is stored, no matter how many apps were targeted`() = runTest {
+        val outcomeCount = 250
+        val id = persist(
+            testSnapshot(
+                metadata = testMetadata(operationKind = Operation.Metadata.Kind.UNINSTALL),
+                state = TestCompletedState(
+                    report = Operation.Report.Packages(
+                        summary = "249 of $outcomeCount done".toCaString(),
+                        outcomes = (0 until outcomeCount).map { index ->
+                            Operation.Report.Packages.Outcome(
+                                label = "App $index".toCaString(),
+                                status = when (index) {
+                                    outcomeCount - 1 -> Operation.Report.Packages.Outcome.Status.FAILED
+                                    else -> Operation.Report.Packages.Outcome.Status.DONE
+                                },
+                                error = when (index) {
+                                    outcomeCount - 1 -> IOException("Operation not permitted")
+                                    else -> null
+                                },
+                            )
+                        },
+                    ),
+                ),
+            )
+        )
+
+        val entry = repo.observeEntry(id).first()!!
+        entry.packages.size shouldBe outcomeCount
+        entry.packages.map { it.label } shouldContainExactly (0 until outcomeCount).map { "App $it" }
+        entry.packages.last() shouldBe HistoryEntry.PackageOutcome(
+            label = "App ${outcomeCount - 1}",
+            status = Operation.Report.Packages.Outcome.Status.FAILED,
+            errorMessage = "Operation not permitted",
+        )
+        entry.packages.count { it.status == Operation.Report.Packages.Outcome.Status.FAILED } shouldBe 1
+    }
+
+    @Test
+    fun `a path report stores no package rows`() = runTest {
+        val id = persist(
+            testSnapshot(
+                metadata = testMetadata(
+                    operationKind = Operation.Metadata.Kind.COPY,
+                    plan = planInto(source, destination = destinationFolder),
+                ),
+                state = TestCompletedState(
+                    report = TestReport(
+                        affectedPaths = listOf(
+                            changeOf(created, Operation.Report.Paths.PathChange.Change.ADDED),
+                        ),
+                    ),
+                ),
+            )
+        )
+
+        database.operationHistoryDao().getById(id)!!.packages.shouldBeEmpty()
+        repo.observeEntry(id).first()!!.packages.shouldBeEmpty()
     }
 
     @Test
@@ -266,6 +379,9 @@ class OperationHistoryPersistTest : BaseTest() {
         stored.paths.shouldBeEmpty()
         stored.entry.affectedPathsCount shouldBe 0
         stored.entry.primaryPath shouldBe null
+        stored.packages.single().label shouldBe "Chrome"
+        stored.packages.single().status shouldBe Operation.Report.Packages.Outcome.Status.DONE.name
+        stored.packages.single().errorMessage shouldBe null
     }
 
     @Test

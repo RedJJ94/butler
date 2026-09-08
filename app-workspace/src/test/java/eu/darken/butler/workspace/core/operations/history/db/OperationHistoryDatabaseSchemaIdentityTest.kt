@@ -17,6 +17,7 @@ class OperationHistoryDatabaseSchemaIdentityTest : BaseTest() {
         roomSchemaIdentityHashes(OperationHistoryDatabase::class.java) shouldBe mapOf(
             1 to "d954c3851505bf400b9cddb7fa6df8fe",
             2 to "5904c0e95136be0e50ce4c6ad0c75012",
+            3 to "7699b5faad97a99349d4e83013234741",
         )
     }
 }

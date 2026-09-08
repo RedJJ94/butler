@@ -74,6 +74,43 @@ class OperationHistoryDatabaseMigrationTest : BaseTest() {
         migrated.close()
     }
 
+    /** Unlike 1->2 this one is additive: nothing an existing installation recorded may be lost. */
+    @Test
+    fun `migrating 2 to 3 keeps existing history and adds the package table`() {
+        val dbName = "migration-data-test-2-3"
+
+        helper.createDatabase(dbName, 2).apply {
+            execSQL(
+                "INSERT INTO operation_history (id, kind, intent, originType, originWorkspaceId, " +
+                    "title, description, summary, startedAt, completedAt, durationMs, outcome, " +
+                    "errorMessage, errorClass, affectedPathsCount, partialErrorCount, pathsTruncated, primaryPath) " +
+                    "VALUES ('op-1', 'COPY', NULL, 'EXPLORER', 'ws-1', 'Copy', 'desc', NULL, " +
+                    "1000, 2000, 1000, 'COMPLETED', NULL, NULL, 1, 0, 0, '/sdcard/Backup/photo.jpg')"
+            )
+            execSQL(
+                "INSERT INTO operation_history_paths " +
+                    "(operationHistoryId, path, previousPath, change, sortIndex) " +
+                    "VALUES ('op-1', '/sdcard/Backup/photo.jpg', NULL, 'ADDED', 0)"
+            )
+            close()
+        }
+
+        val migrated = helper.runMigrationsAndValidate(dbName, 3, true, *OperationHistoryDatabase.MIGRATIONS)
+
+        migrated.countOf("operation_history") shouldBe 1
+        migrated.countOf("operation_history_paths") shouldBe 1
+        migrated.countOf("operation_history_packages") shouldBe 0
+
+        migrated.execSQL(
+            "INSERT INTO operation_history_packages " +
+                "(operationHistoryId, label, status, errorMessage, sortIndex) " +
+                "VALUES ('op-1', 'Chrome', 'DONE', NULL, 0)"
+        )
+        migrated.countOf("operation_history_packages") shouldBe 1
+
+        migrated.close()
+    }
+
     private fun SupportSQLiteDatabase.countOf(table: String): Int =
         query("SELECT COUNT(*) FROM $table").use { cursor ->
             cursor.moveToFirst()

@@ -55,7 +55,7 @@ internal fun OperationPackagesSection(
                             Operation.Report.Packages.Outcome.Status.FAILED -> Icons.TwoTone.Error
                             Operation.Report.Packages.Outcome.Status.DECLINED -> Icons.TwoTone.Block
                         },
-                        contentDescription = null,
+                        contentDescription = stringResource(outcome.status.labelRes),
                         tint = when (outcome.status) {
                             Operation.Report.Packages.Outcome.Status.DONE -> MaterialTheme.colorScheme.primary
                             Operation.Report.Packages.Outcome.Status.FAILED -> MaterialTheme.colorScheme.error

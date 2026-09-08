@@ -28,6 +28,8 @@ data class HistoryEntry(
     val partialErrorCount: Int,
     val pathsTruncated: Boolean,
     val paths: List<PathChange>,
+    /** Per-app outcomes of a package operation. Empty for path operations. */
+    val packages: List<PackageOutcome> = emptyList(),
     /**
      * The path the operation was about, used as the row label. Not necessarily [paths]`[0]`: an
      * extraction names its archive, a recursive delete names the folder that was selected. Null
@@ -41,6 +43,12 @@ data class HistoryEntry(
         val path: String,
         val previousPath: String?,
         val change: Operation.Report.Paths.PathChange.Change,
+    )
+
+    data class PackageOutcome(
+        val label: String,
+        val status: Operation.Report.Packages.Outcome.Status,
+        val errorMessage: String?,
     )
 
     companion object {

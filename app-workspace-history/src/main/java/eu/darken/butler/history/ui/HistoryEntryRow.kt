@@ -56,6 +56,7 @@ import eu.darken.butler.common.compose.Preview2
 import eu.darken.butler.common.formatRelativeTime
 import eu.darken.butler.history.R
 import eu.darken.butler.history.core.headlineLabelRes
+import eu.darken.butler.history.core.isPackageKind
 import eu.darken.butler.workspace.core.operations.Operation
 import eu.darken.butler.workspace.core.operations.history.HistoryEntry
 import eu.darken.butler.workspace.core.operations.history.HistoryOutcome
@@ -168,8 +169,19 @@ fun HistoryEntryRow(
     }
 }
 
+/** A package operation reports per-app outcomes, not paths, so its path count is always 0. */
 @Composable
 private fun CountText(entry: HistoryEntry) {
+    if (entry.kind.isPackageKind) {
+        Text(
+            text = "${entry.packages.size}",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            textAlign = TextAlign.End,
+        )
+        return
+    }
     val truncatedDescription = if (entry.pathsTruncated) {
         stringResource(
             R.string.history_entry_paths_truncated_content_description,
@@ -311,6 +323,13 @@ private fun HistoryEntryRowPackagePreview() {
             partialErrorCount = 0,
             pathsTruncated = false,
             paths = emptyList(),
+            packages = listOf(
+                HistoryEntry.PackageOutcome(
+                    label = "PP Test App",
+                    status = Operation.Report.Packages.Outcome.Status.DONE,
+                    errorMessage = null,
+                ),
+            ),
         ),
         onClick = {},
     )

@@ -109,6 +109,8 @@
     <string name="history_detail_copy_path_action">Copy path</string>
     <string name="history_detail_paths_empty">No affected paths recorded.</string>
     <string name="history_detail_label_attempted_paths">Attempted paths</string>
+    <string name="history_detail_label_packages">Affected apps</string>
+    <string name="history_detail_packages_empty">No affected apps recorded.</string>
     <string name="history_detail_paths_truncated_callout">Showing first %1$d of %2$d affected paths.</string>
     <string name="history_detail_attempted_paths_truncated_callout">Showing first %1$d of %2$d attempted paths.</string>
     <plurals name="history_detail_partial_errors_callout">
@@ -204,6 +206,7 @@
     <string name="history_share_label_error">Error</string>
     <string name="history_share_label_failed_items">Failed items</string>
     <string name="history_share_label_paths">Affected paths (%1$d)</string>
+    <string name="history_share_label_packages">Affected apps (%1$d)</string>
     <string name="history_share_paths_more">… and %1$d more</string>
     <string name="history_share_truncated">… and %1$d more entries not included</string>
 </resources>
