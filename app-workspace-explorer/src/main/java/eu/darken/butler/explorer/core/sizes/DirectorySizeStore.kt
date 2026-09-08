@@ -3,6 +3,7 @@ package eu.darken.butler.explorer.core.sizes
 import eu.darken.butler.common.files.APath
 import eu.darken.butler.common.files.extensions.isAncestorOf
 import eu.darken.butler.common.files.extensions.isAncestorOfOrSelf
+import eu.darken.butler.explorer.core.sorting.rules.TabSortRule
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -21,6 +22,8 @@ class DirectorySizeStore {
         val running: Map<String, APath<*>> = emptyMap(),
         /** Running roots that saw an overlapping change; their results are dropped at publish. */
         val stale: Set<String> = emptySet(),
+        /** Roots whose result already flipped the tab to size sort, keyed like [scans]. */
+        val sortSwitches: Map<String, SortRestore> = emptyMap(),
     ) {
         /** The deepest scan whose root is [directory] or an ancestor of it. */
         fun scanFor(directory: APath<*>): DirectoryScan? = scans.values
@@ -29,6 +32,12 @@ class DirectorySizeStore {
 
         fun isRunning(directory: APath<*>): Boolean = directory.path in running
     }
+
+    /** What the tab sorted by before a scan's result switched it to size. */
+    data class SortRestore(
+        /** Null when the folder had no tab-local rule at all, i.e. the switch has to be undone by removal. */
+        val previousRule: TabSortRule?,
+    )
 
     private val _snapshot = MutableStateFlow(Snapshot())
     val snapshot: StateFlow<Snapshot> = _snapshot.asStateFlow()
@@ -40,6 +49,24 @@ class DirectorySizeStore {
             if (key in current.running) current else current.copy(running = current.running + (key to root))
         }
         return key !in previous.running
+    }
+
+    /** Remembers what to sort by again if [root]'s sizes are discarded; the first record for a root wins. */
+    fun recordSortSwitch(root: APath<*>, previousRule: TabSortRule?) {
+        val key = root.path
+        _snapshot.update { current ->
+            if (key in current.sortSwitches) current
+            else current.copy(sortSwitches = current.sortSwitches + (key to SortRestore(previousRule)))
+        }
+    }
+
+    /** Forgets [root]'s scan and returns how its sort switch is to be undone, if there was one. */
+    fun discard(root: APath<*>): SortRestore? {
+        val key = root.path
+        val previous = _snapshot.getAndUpdate { current ->
+            current.copy(scans = current.scans - key, sortSwitches = current.sortSwitches - key)
+        }
+        return previous.sortSwitches[key]
     }
 
     fun markFinished(root: APath<*>) {
@@ -66,7 +93,10 @@ class DirectorySizeStore {
             // A fresh parent covers everything below it.
             val retained = current.scans.filterValues { !scan.root.isAncestorOf(it.root) }
             stored = true
-            current.copy(scans = retained + (key to scan))
+            current.copy(
+                scans = retained + (key to scan),
+                sortSwitches = current.sortSwitches.filterKeys { it == key || it in retained },
+            )
         }
         return stored
     }
@@ -80,7 +110,11 @@ class DirectorySizeStore {
         _snapshot.update { current ->
             val retained = current.scans.filterValues { scan -> paths.none { it.overlaps(scan.root) } }
             val nowStale = current.running.filterValues { root -> paths.any { it.overlaps(root) } }.keys
-            current.copy(scans = retained, stale = current.stale + nowStale)
+            current.copy(
+                scans = retained,
+                stale = current.stale + nowStale,
+                sortSwitches = current.sortSwitches.filterKeys { it in retained },
+            )
         }
     }
 }

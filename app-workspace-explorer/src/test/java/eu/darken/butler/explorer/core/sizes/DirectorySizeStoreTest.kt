@@ -2,6 +2,8 @@ package eu.darken.butler.explorer.core.sizes
 
 import eu.darken.butler.common.files.APath
 import eu.darken.butler.common.files.LocalPath
+import eu.darken.butler.explorer.core.SortSettings
+import eu.darken.butler.explorer.core.sorting.rules.TabSortRule
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
@@ -107,5 +109,44 @@ class DirectorySizeStoreTest : BaseTest() {
 
         store.markFinished(path("/a"))
         store.snapshot.value.stale shouldBe emptySet()
+    }
+
+    @Test
+    fun `the first sort switch recorded for a root is the one that is kept`() {
+        val store = DirectorySizeStore()
+        val previous = TabSortRule(
+            settings = SortSettings(mode = SortSettings.Mode.NAME),
+            subtree = false,
+            path = "serialized",
+        )
+
+        store.recordSortSwitch(path("/a"), previous)
+        store.recordSortSwitch(path("/a"), null)
+
+        store.snapshot.value.sortSwitches shouldBe mapOf("/a" to DirectorySizeStore.SortRestore(previous))
+    }
+
+    @Test
+    fun `discarding a scan returns its sort switch and forgets both`() {
+        val store = DirectorySizeStore()
+        store.publish(scan("/a", "/a" to 10L))
+        store.recordSortSwitch(path("/a"), null)
+
+        store.discard(path("/a")) shouldBe DirectorySizeStore.SortRestore(null)
+
+        store.snapshot.value.scans.keys shouldBe emptySet()
+        store.snapshot.value.sortSwitches.keys shouldBe emptySet()
+    }
+
+    @Test
+    fun `a change that drops a scan drops its sort switch with it`() {
+        val store = DirectorySizeStore()
+        store.publish(scan("/a", "/a" to 10L))
+        store.recordSortSwitch(path("/a"), null)
+
+        store.invalidate(listOf(path("/a/b/file")))
+
+        store.snapshot.value.scans.keys shouldBe emptySet()
+        store.snapshot.value.sortSwitches.keys shouldBe emptySet()
     }
 }
