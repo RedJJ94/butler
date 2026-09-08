@@ -19,11 +19,14 @@ import androidx.compose.material.icons.twotone.Compress
 import androidx.compose.material.icons.twotone.CopyAll
 import androidx.compose.material.icons.twotone.CreateNewFolder
 import androidx.compose.material.icons.twotone.Delete
+import androidx.compose.material.icons.twotone.DeleteSweep
 import androidx.compose.material.icons.twotone.Error
 import androidx.compose.material.icons.twotone.ErrorOutline
+import androidx.compose.material.icons.twotone.Extension
 import androidx.compose.material.icons.twotone.InstallMobile
 import androidx.compose.material.icons.twotone.Restore
 import androidx.compose.material.icons.twotone.Save
+import androidx.compose.material.icons.twotone.StopCircle
 import androidx.compose.material.icons.twotone.Unarchive
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
@@ -49,9 +52,12 @@ import androidx.compose.ui.tooling.preview.PreviewWrapper as ComposePreviewWrapp
 import androidx.compose.ui.unit.dp
 import eu.darken.butler.common.compose.ButlerPreviewWrapper
 import eu.darken.butler.common.compose.Preview2
+import eu.darken.butler.common.compose.icons.Snowflake
+import eu.darken.butler.common.compose.icons.SnowflakeOff
 import eu.darken.butler.common.formatRelativeTime
 import eu.darken.butler.history.R
 import eu.darken.butler.history.core.headlineLabelRes
+import eu.darken.butler.history.core.isPackageKind
 import eu.darken.butler.workspace.core.operations.Operation
 import eu.darken.butler.workspace.core.operations.history.HistoryEntry
 import eu.darken.butler.workspace.core.operations.history.HistoryOutcome
@@ -164,8 +170,19 @@ fun HistoryEntryRow(
     }
 }
 
+/** A package operation reports per-app outcomes, not paths, so its path count is always 0. */
 @Composable
 private fun CountText(entry: HistoryEntry) {
+    if (entry.kind.isPackageKind) {
+        Text(
+            text = "${entry.packages.size}",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            textAlign = TextAlign.End,
+        )
+        return
+    }
     val truncatedDescription = if (entry.pathsTruncated) {
         stringResource(
             R.string.history_entry_paths_truncated_content_description,
@@ -196,7 +213,8 @@ private fun CountText(entry: HistoryEntry) {
 @Composable
 private fun HistoryEntry.headline(): String {
     val label = stringResource(intent?.headlineLabelRes ?: kind.headlineLabelRes)
-    val target = displayPath()?.substringAfterLast('/')
+    // A row without a path names its subject through the description, e.g. the app label.
+    val target = displayPath()?.substringAfterLast('/') ?: description.takeIf { it.isNotBlank() }
     return if (target.isNullOrBlank()) {
         label
     } else {
@@ -221,6 +239,12 @@ internal fun Operation.Metadata.Kind.icon(): ImageVector = when (this) {
     Operation.Metadata.Kind.EXTRACT -> Icons.TwoTone.Unarchive
     Operation.Metadata.Kind.RESTORE -> Icons.TwoTone.Restore
     Operation.Metadata.Kind.INSTALL -> Icons.TwoTone.InstallMobile
+    Operation.Metadata.Kind.ENABLE -> Icons.TwoTone.SnowflakeOff
+    Operation.Metadata.Kind.DISABLE -> Icons.TwoTone.Snowflake
+    Operation.Metadata.Kind.FORCE_STOP -> Icons.TwoTone.StopCircle
+    Operation.Metadata.Kind.UNINSTALL -> Icons.TwoTone.Delete
+    Operation.Metadata.Kind.CLEAR_DATA -> Icons.TwoTone.DeleteSweep
+    Operation.Metadata.Kind.COMPONENTS -> Icons.TwoTone.Extension
 }
 
 @Composable
@@ -268,6 +292,44 @@ private fun HistoryEntryRowPreview() {
                     path = "/storage/emulated/0/backup/photo1.jpg",
                     previousPath = null,
                     change = Operation.Report.Paths.PathChange.Change.ADDED,
+                ),
+            ),
+        ),
+        onClick = {},
+    )
+}
+
+@Preview2
+@ComposePreviewWrapper(ButlerPreviewWrapper::class)
+@Composable
+private fun HistoryEntryRowPackagePreview() {
+    val now = Clock.System.now()
+    HistoryEntryRow(
+        entry = HistoryEntry(
+            id = "6",
+            kind = Operation.Metadata.Kind.UNINSTALL,
+            intent = null,
+            originType = HistoryEntry.OriginType.APPS,
+            originWorkspaceId = "abc",
+            title = "Uninstall app",
+            description = "PP Test App",
+            summary = "PP Test App uninstalled",
+            startedAt = now - 12.seconds,
+            completedAt = now - 8.seconds,
+            duration = 4.seconds,
+            outcome = HistoryOutcome.COMPLETED,
+            errorMessage = null,
+            errorClass = null,
+            affectedPathsCount = 0,
+            partialErrorCount = 0,
+            pathsTruncated = false,
+            paths = emptyList(),
+            packages = listOf(
+                HistoryEntry.PackageOutcome(
+                    label = "PP Test App",
+                    packageName = "eu.darken.myperm.testapp",
+                    status = Operation.Report.Packages.Outcome.Status.DONE,
+                    errorMessage = null,
                 ),
             ),
         ),

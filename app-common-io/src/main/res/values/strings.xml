@@ -83,6 +83,17 @@
     <string name="app_install_confirm_pending_action">Confirm installation</string>
     <string name="app_install_confirm_pending_reason">The installer is waiting for your confirmation</string>
 
+    <!-- App uninstall confirmation -->
+    <string name="app_uninstall_confirm_pending_title">Confirmation required</string>
+    <string name="app_uninstall_confirm_pending_description">Android needs you to confirm the removal of \"%1$s\" before it can finish.</string>
+    <string name="app_uninstall_confirm_pending_description_unnamed">Android needs you to confirm this removal before it can finish.</string>
+    <string name="app_uninstall_confirm_pending_action">Confirm removal</string>
+    <string name="app_uninstall_confirm_pending_reason">Android is waiting for your confirmation</string>
+
+    <!-- App uninstall errors -->
+    <string name="app_uninstall_other_user_unsupported">Removing this app for another user needs root or Shizuku</string>
+    <string name="app_uninstall_no_result">Android did not report a result</string>
+
     <!-- Service connection errors -->
     <string name="service_connection_lost_error_title">File operation interrupted</string>
     <string name="service_connection_lost_error_message">The file operation service stopped unexpectedly. Please try again.</string>

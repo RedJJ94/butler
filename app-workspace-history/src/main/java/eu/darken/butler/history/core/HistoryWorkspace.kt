@@ -176,6 +176,12 @@ class HistoryWorkspace @AssistedInject constructor(
                         Operation.Metadata.Kind.EXTRACT -> ctx.getString(R.string.history_workspace_title_kind_extract)
                         Operation.Metadata.Kind.RESTORE -> ctx.getString(R.string.history_workspace_title_kind_restore)
                         Operation.Metadata.Kind.INSTALL -> ctx.getString(R.string.history_workspace_title_kind_install)
+                        Operation.Metadata.Kind.ENABLE -> ctx.getString(R.string.history_workspace_title_kind_enable)
+                        Operation.Metadata.Kind.DISABLE -> ctx.getString(R.string.history_workspace_title_kind_disable)
+                        Operation.Metadata.Kind.FORCE_STOP -> ctx.getString(R.string.history_workspace_title_kind_force_stop)
+                        Operation.Metadata.Kind.UNINSTALL -> ctx.getString(R.string.history_workspace_title_kind_uninstall)
+                        Operation.Metadata.Kind.CLEAR_DATA -> ctx.getString(R.string.history_workspace_title_kind_clear_data)
+                        Operation.Metadata.Kind.COMPONENTS -> ctx.getString(R.string.history_workspace_title_kind_components)
                     }
                 else -> ctx.getString(R.string.history_workspace_title_filtered)
             }

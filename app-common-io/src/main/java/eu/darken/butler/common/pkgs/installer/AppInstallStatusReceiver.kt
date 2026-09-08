@@ -14,6 +14,9 @@ import javax.inject.Inject
 /**
  * Status sink for system-installer sessions. Not exported; only reachable via the explicit
  * PendingIntent [AppInstaller] hands to `PackageInstaller.Session.commit`.
+ *
+ * [eu.darken.butler.common.pkgs.uninstaller.SystemUninstaller] sends its removals here too: the
+ * payload is the same `PackageInstaller` status contract, told apart by the request id.
  */
 @AndroidEntryPoint
 class AppInstallStatusReceiver : BroadcastReceiver() {

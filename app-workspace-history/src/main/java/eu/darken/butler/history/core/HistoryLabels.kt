@@ -34,6 +34,39 @@ internal val Operation.Metadata.Kind.labelRes: Int
         Operation.Metadata.Kind.EXTRACT -> R.string.history_filter_kind_extract
         Operation.Metadata.Kind.RESTORE -> R.string.history_filter_kind_restore
         Operation.Metadata.Kind.INSTALL -> R.string.history_filter_kind_install
+        Operation.Metadata.Kind.ENABLE -> R.string.history_filter_kind_enable
+        Operation.Metadata.Kind.DISABLE -> R.string.history_filter_kind_disable
+        Operation.Metadata.Kind.FORCE_STOP -> R.string.history_filter_kind_force_stop
+        Operation.Metadata.Kind.UNINSTALL -> R.string.history_filter_kind_uninstall
+        Operation.Metadata.Kind.CLEAR_DATA -> R.string.history_filter_kind_clear_data
+        Operation.Metadata.Kind.COMPONENTS -> R.string.history_filter_kind_components
+    }
+
+/**
+ * Package operations report per-app outcomes instead of path changes, so the detail sheet and the
+ * share text render a different section for them.
+ */
+internal val Operation.Metadata.Kind.isPackageKind: Boolean
+    get() = when (this) {
+        Operation.Metadata.Kind.ENABLE,
+        Operation.Metadata.Kind.DISABLE,
+        Operation.Metadata.Kind.FORCE_STOP,
+        Operation.Metadata.Kind.UNINSTALL,
+        Operation.Metadata.Kind.CLEAR_DATA,
+        Operation.Metadata.Kind.COMPONENTS,
+            -> true
+
+        Operation.Metadata.Kind.COPY,
+        Operation.Metadata.Kind.MOVE,
+        Operation.Metadata.Kind.DELETE,
+        Operation.Metadata.Kind.CREATE_FILE,
+        Operation.Metadata.Kind.CREATE_FOLDER,
+        Operation.Metadata.Kind.SAVE,
+        Operation.Metadata.Kind.COMPRESS,
+        Operation.Metadata.Kind.EXTRACT,
+        Operation.Metadata.Kind.RESTORE,
+        Operation.Metadata.Kind.INSTALL,
+            -> false
     }
 
 @get:StringRes
@@ -61,6 +94,12 @@ internal val Operation.Metadata.Kind.headlineLabelRes: Int
         Operation.Metadata.Kind.EXTRACT -> R.string.history_entry_kind_extract
         Operation.Metadata.Kind.RESTORE -> R.string.history_entry_kind_restore
         Operation.Metadata.Kind.INSTALL -> R.string.history_entry_kind_install
+        Operation.Metadata.Kind.ENABLE -> R.string.history_entry_kind_enable
+        Operation.Metadata.Kind.DISABLE -> R.string.history_entry_kind_disable
+        Operation.Metadata.Kind.FORCE_STOP -> R.string.history_entry_kind_force_stop
+        Operation.Metadata.Kind.UNINSTALL -> R.string.history_entry_kind_uninstall
+        Operation.Metadata.Kind.CLEAR_DATA -> R.string.history_entry_kind_clear_data
+        Operation.Metadata.Kind.COMPONENTS -> R.string.history_entry_kind_components
     }
 
 @get:StringRes
@@ -71,4 +110,6 @@ internal val Operation.Metadata.Intent.headlineLabelRes: Int
         Operation.Metadata.Intent.PASTE_MOVE -> R.string.history_entry_intent_paste_move
         Operation.Metadata.Intent.DROP_COPY -> R.string.history_entry_intent_drop_copy
         Operation.Metadata.Intent.DROP_MOVE -> R.string.history_entry_intent_drop_move
+        Operation.Metadata.Intent.ENABLE_COMPONENTS -> R.string.history_entry_intent_enable_components
+        Operation.Metadata.Intent.DISABLE_COMPONENTS -> R.string.history_entry_intent_disable_components
     }

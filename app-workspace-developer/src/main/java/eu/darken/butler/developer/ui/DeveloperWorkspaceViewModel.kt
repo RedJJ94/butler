@@ -436,6 +436,7 @@ class DeveloperWorkspaceViewModel @AssistedInject constructor(
                     entry = entry,
                     paths = pathEntities,
                     scopePaths = scopeEntities,
+                    packages = emptyList(),
                     maxItems = maxItems,
                 )
             }

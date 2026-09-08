@@ -11,15 +11,15 @@ import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import eu.darken.butler.apps.R
-import eu.darken.butler.apps.core.AppSizeCache
 import eu.darken.butler.apps.core.details.components.AppComponentsController
 import eu.darken.butler.apps.core.details.components.AppComponentsLoader
 import eu.darken.butler.apps.core.details.components.ComponentEntry
 import eu.darken.butler.apps.core.details.components.ComponentToggleState
+import eu.darken.butler.apps.core.operations.PackageCommand
 import eu.darken.butler.apps.ui.details.AppDetailsConfirmRequest
 import eu.darken.butler.apps.ui.details.components.ComponentsActionBarItem
 import eu.darken.butler.apps.ui.details.components.ComponentsConfirmRequest
-import eu.darken.butler.common.ElevatedAccessUnavailableException
+import eu.darken.butler.apps.ui.operations.PackageOperationUiController
 import eu.darken.butler.common.coroutine.DispatcherProvider
 import eu.darken.butler.common.debug.logging.Logging.Priority.*
 import eu.darken.butler.common.debug.logging.asLog
@@ -39,6 +39,9 @@ import eu.darken.butler.workspace.core.Workspace
 import eu.darken.butler.workspace.core.WorkspaceProvider
 import eu.darken.butler.workspace.core.WorkspaceRemote
 import eu.darken.butler.workspace.core.createAndFocus
+import eu.darken.butler.workspace.core.operations.Operation
+import eu.darken.butler.workspace.core.operations.OperationFocusRequest
+import eu.darken.butler.workspace.ui.page.WorkspacePageChrome
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -61,9 +64,27 @@ class AppDetailsWorkspaceViewModel @AssistedInject constructor(
     dispatchers: DispatcherProvider,
     workspaceProvider: WorkspaceProvider,
     private val workspaceRemote: WorkspaceRemote,
-    private val appSizeCache: AppSizeCache,
     componentsLoader: AppComponentsLoader,
+    chromeFactory: WorkspacePageChrome.Factory,
+    operationFocusRequest: OperationFocusRequest,
 ) : ViewModel4(dispatchers, logTag("AppDetails", "Workspace", id.shortTag, "Page")) {
+
+    private val chrome = chromeFactory.create(id, vmScope)
+
+    val operationsUi = PackageOperationUiController(
+        workspaceId = id,
+        chrome = chrome,
+        operationFocusRequest = operationFocusRequest,
+        scope = vmScope,
+        tag = tag,
+    )
+
+    val shareIntentEvent = chrome.shareIntentEvent
+    val pendingErrorShare = chrome.pendingErrorShare
+
+    fun confirmErrorShare() = chrome.confirmErrorShare()
+
+    fun dismissErrorShare() = chrome.dismissErrorShare()
 
     private val workspaceSource: Flow<AppDetailsWorkspace?> =
         workspaceProvider.retrieve(id)
@@ -124,6 +145,10 @@ class AppDetailsWorkspaceViewModel @AssistedInject constructor(
     val appConfirm: StateFlow<AppDetailsConfirmRequest?> = appConfirmFlow
 
     init {
+        // A "tap to resolve" notification routes here (see the controller).
+        operationsUi.focusRequestHandler.launchInViewModel()
+        operationsUi.issueRetireHandler.launchInViewModel()
+
         // Driven from the nullable source, not from `state`: that one filters the absent workspace
         // away and would never emit, leaving the controller holding data, a live selection and a
         // running load in a ViewModel that outlives the pane.
@@ -209,21 +234,19 @@ class AppDetailsWorkspaceViewModel @AssistedInject constructor(
     }
 
     private suspend fun applyComponentState(entries: List<ComponentEntry>, enabled: Boolean) {
-        try {
-            getWorkspace().setComponentsEnabled(entries, enabled)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            // Unwrap so the "Open setup" fix action survives: LocalizedError matches
-            // HasLocalizedError on the top-level throwable only, and PkgOpsException is a plain
-            // IOException. Same cause-walk idiom as onUninstall().
-            throw generateSequence<Throwable>(e) { it.cause }
-                .filterIsInstance<ElevatedAccessUnavailableException>()
-                .firstOrNull() ?: e
-        } finally {
-            componentsController.refresh()
-            componentsController.clearSelection()
-        }
+        val app = state.first().app ?: return
+        val managed = submit(
+            PackageCommand.SetComponents(
+                target = PackageCommand.Target(app.installId, app.label),
+                entries = entries,
+                enabled = enabled,
+            )
+        ) ?: return
+        componentsController.clearSelection()
+        // Completed is the one terminal state of this framework - success, failure and cancellation
+        // all arrive as it - so the list is reloaded after every outcome.
+        managed.state.first { it is Operation.State.Completed }
+        componentsController.refresh()
     }
 
     fun onTabSelected(tab: DetailTab) = launch {
@@ -277,24 +300,15 @@ class AppDetailsWorkspaceViewModel @AssistedInject constructor(
     fun onUninstall(app: AppInfo) = launch {
         val hasElevatedAccess = state.first().let { it.hasRoot || it.hasAdb }
         if (!hasElevatedAccess) {
-            // Android's dialog IS the confirmation on this path, and it is launched directly rather
-            // than through the workspace: deciding on availability and then dispatching would
-            // re-read root/ADB a moment later, so a flip to available in between would run an
-            // elevated uninstall that nobody ever confirmed.
+            // Android's dialog IS the confirmation on this path, and which path to take is decided
+            // here, once: re-reading root/ADB inside the operation a moment later would let a flip
+            // to available run an elevated uninstall that nobody ever confirmed.
             log(tag) { "onUninstall(${app.packageName}): no elevated access, using the system dialog" }
-            startSystemUninstall(app)
+            submit(PackageCommand.Uninstall(listOf(app.asTarget()), viaSystemDialog = true))
             return@launch
         }
         log(tag) { "onUninstall(${app.packageName}): asking for confirmation" }
         appConfirmFlow.value = AppDetailsConfirmRequest.Uninstall(app)
-    }
-
-    private fun startSystemUninstall(app: AppInfo) {
-        val intent = Intent(Intent.ACTION_DELETE).apply {
-            data = "package:${app.packageName}".toUri()
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        context.startActivity(intent)
     }
 
     /** A pending dialog must not outlive its target: the package can vanish or change under it. */
@@ -315,37 +329,17 @@ class AppDetailsWorkspaceViewModel @AssistedInject constructor(
         }
         log(tag) { "onAppConfirm($request)" }
         when (request) {
-            is AppDetailsConfirmRequest.ClearData -> {
-                getWorkspace().clearDataApp(request.app)
-                appSizeCache.invalidate(listOf(request.app.installId))
-            }
+            is AppDetailsConfirmRequest.ClearData ->
+                submit(PackageCommand.ClearData(listOf(request.app.asTarget())))
 
-            is AppDetailsConfirmRequest.Uninstall -> performUninstall(request.app)
+            is AppDetailsConfirmRequest.Uninstall ->
+                submit(PackageCommand.Uninstall(listOf(request.app.asTarget()), viaSystemDialog = false))
         }
     }
 
     fun onAppConfirmDismiss() {
         log(tag) { "onAppConfirmDismiss()" }
         appConfirmFlow.value = null
-    }
-
-    private suspend fun performUninstall(app: AppInfo) {
-        log(tag) { "Uninstalling app: ${app.packageName}" }
-        try {
-            getWorkspace().uninstallApp(app)
-            // Don't close here — auto-close in AppDetailsWorkspace handles it reactively
-        } catch (e: Exception) {
-            // The safety net for the opposite flip: elevated access lost between the confirmation
-            // and the dispatch, which leaves the user with Android's dialog after Butler's.
-            val isElevatedUnavailable = generateSequence<Throwable>(e) { it.cause }
-                .any { it is ElevatedAccessUnavailableException }
-            if (isElevatedUnavailable) {
-                log(tag) { "Elevated access unavailable, falling back to system uninstall intent" }
-                startSystemUninstall(app)
-            } else {
-                throw e
-            }
-        }
     }
 
     fun onExportApk(app: AppInfo) = launch {
@@ -397,7 +391,8 @@ class AppDetailsWorkspaceViewModel @AssistedInject constructor(
 
     fun onEnableDisable(app: AppInfo) = launch {
         log(tag) { "Toggle enable/disable: ${app.packageName}, current=${app.install.isEnabled}" }
-        getWorkspace().setAppEnabled(app, enabled = !app.isEnabled)
+        val targets = listOf(app.asTarget())
+        submit(if (app.isEnabled) PackageCommand.Disable(targets) else PackageCommand.Enable(targets))
     }
 
     fun onLaunchComponent(packageName: String, className: String) {
@@ -419,8 +414,12 @@ class AppDetailsWorkspaceViewModel @AssistedInject constructor(
 
     fun onForceStop(app: AppInfo) = launch {
         log(tag) { "Force stopping: ${app.packageName}" }
-        getWorkspace().forceStopApp(app)
+        submit(PackageCommand.ForceStop(listOf(app.asTarget())))
     }
+
+    private fun AppInfo.asTarget() = PackageCommand.Target(installId, label)
+
+    private suspend fun submit(command: PackageCommand) = getWorkspace().submit(command)
 
     /** Always confirmed: there is no undo, and no system dialog stands between tap and wipe. */
     fun onClearData(app: AppInfo) {
@@ -442,6 +441,11 @@ class AppDetailsWorkspaceViewModel @AssistedInject constructor(
     fun close() = launch {
         log(tag) { "Closing app details workspace" }
         workspaceRemote.execute(eu.darken.butler.workspace.core.WorkspaceAction.Close(id))
+    }
+
+    override fun onCleared() {
+        operationsUi.onCleared()
+        super.onCleared()
     }
 
     @AssistedFactory

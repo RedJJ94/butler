@@ -54,6 +54,8 @@ class AppDetailsWorkspaceArgumentsTest : BaseTest() {
         rootManager = mockk<RootManager> { every { useRoot } returns flowOf(false) },
         adbManager = mockk<AdbManager> { every { useAdb } returns flowOf(false) },
         workspaceRemote = mockk(relaxed = true),
+        operationsManager = mockk(relaxed = true),
+        operationFactory = mockk(),
     )
 
     @Test

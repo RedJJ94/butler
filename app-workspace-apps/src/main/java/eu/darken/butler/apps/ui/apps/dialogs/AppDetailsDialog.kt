@@ -13,8 +13,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.twotone.Launch
 import androidx.compose.material.icons.twotone.Android
-import androidx.compose.material.icons.twotone.Block
-import androidx.compose.material.icons.twotone.CheckCircle
 import androidx.compose.material.icons.twotone.Delete
 import androidx.compose.material.icons.twotone.FolderOpen
 import androidx.compose.material.icons.twotone.GetApp
@@ -38,6 +36,8 @@ import eu.darken.butler.apps.R
 import eu.darken.butler.apps.core.AppPath
 import eu.darken.butler.apps.core.engine.AppItem
 import eu.darken.butler.apps.ui.apps.elements.AppsActionBarItem
+import eu.darken.butler.common.compose.icons.Snowflake
+import eu.darken.butler.common.compose.icons.SnowflakeOff
 import eu.darken.butler.common.formatFileSize
 import eu.darken.butler.workspace.ui.bottomsheet.PaneScopedBottomSheet
 
@@ -290,7 +290,7 @@ private fun AppDetailsContent(
                         }
                     ) {
                         Icon(
-                            imageVector = Icons.TwoTone.Block,
+                            imageVector = Icons.TwoTone.Snowflake,
                             contentDescription = null,
                             modifier = Modifier.size(18.dp)
                         )
@@ -305,7 +305,7 @@ private fun AppDetailsContent(
                         }
                     ) {
                         Icon(
-                            imageVector = Icons.TwoTone.CheckCircle,
+                            imageVector = Icons.TwoTone.SnowflakeOff,
                             contentDescription = null,
                             modifier = Modifier.size(18.dp)
                         )

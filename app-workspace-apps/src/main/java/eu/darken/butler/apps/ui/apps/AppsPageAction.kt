@@ -8,6 +8,7 @@ import eu.darken.butler.workspace.contracts.apps.AppTag
 import eu.darken.butler.workspace.contracts.apps.AppsViewStyle
 import eu.darken.butler.workspace.contracts.apps.SortSettings
 import eu.darken.butler.workspace.contracts.apps.TagFilterConfig
+import eu.darken.butler.workspace.ui.operations.bar.OperationsBarAction
 
 /**
  * Sealed interface representing all page-level actions in the Apps workspace.
@@ -90,4 +91,7 @@ sealed interface AppsPageAction {
      * Delegates to existing [eu.darken.butler.apps.ui.apps.elements.AppsActionBarItem] for domain operations.
      */
     data class ActionBarClick(val item: AppsActionBarItem) : AppsPageAction
+
+    /** What the user did on the operations bar, routed to the shared controller. */
+    data class OperationBar(val action: OperationsBarAction) : AppsPageAction
 }

@@ -155,6 +155,10 @@
     <string name="operations_details_affected_paths_with_count">Affected paths (%d)</string>
     <string name="operations_details_problems_with_count">Problems (%d)</string>
     <string name="operations_details_problems_more">%d more not listed</string>
+    <string name="workspace_operation_packages_section_title">Apps</string>
+    <string name="workspace_operation_package_status_done">Done</string>
+    <string name="workspace_operation_package_status_failed">Failed</string>
+    <string name="workspace_operation_package_status_declined">Declined</string>
     <string name="operations_details_section_expand">Expand %1$s</string>
     <string name="operations_details_section_collapse">Collapse %1$s</string>
     <string name="workspace_operations_performance_graph_label">Performance graph</string>

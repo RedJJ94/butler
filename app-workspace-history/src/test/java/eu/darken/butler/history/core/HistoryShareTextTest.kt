@@ -175,6 +175,67 @@ class HistoryShareTextTest : BaseTest() {
         text shouldContain "Showing first 2 of 12 attempted paths."
     }
 
+    private fun packageEntry(
+        packages: List<HistoryEntry.PackageOutcome>,
+    ) = entry(
+        title = "Uninstall 3 apps",
+        description = "Chrome, System UI, Notes",
+        affectedPathsCount = 0,
+        paths = emptyList(),
+    ).copy(
+        kind = Operation.Metadata.Kind.UNINSTALL,
+        packages = packages,
+    )
+
+    @Test
+    fun `a package entry lists its apps instead of paths`() {
+        val text = share(
+            entries = listOf(
+                packageEntry(
+                    listOf(
+                        HistoryEntry.PackageOutcome(
+                            label = "Chrome",
+                            packageName = "com.android.chrome",
+                            status = Operation.Report.Packages.Outcome.Status.DONE,
+                            errorMessage = null,
+                        ),
+                        HistoryEntry.PackageOutcome(
+                            label = "System UI",
+                            packageName = "com.android.systemui",
+                            status = Operation.Report.Packages.Outcome.Status.FAILED,
+                            errorMessage = "Operation not permitted",
+                        ),
+                        HistoryEntry.PackageOutcome(
+                            label = "Notes",
+                            packageName = "com.example.notes",
+                            status = Operation.Report.Packages.Outcome.Status.DECLINED,
+                            errorMessage = null,
+                        ),
+                    )
+                )
+            ),
+            attemptedPaths = OperationHistoryRepo.AttemptedPaths(
+                paths = listOf("/sdcard/ButlerQA"),
+                totalCount = 1,
+            ),
+        )
+
+        text shouldContain "**Affected apps (3)**\n"
+        text shouldContain "- Done: Chrome (com.android.chrome)\n"
+        text shouldContain "- Failed: System UI (com.android.systemui)\n  Operation not permitted\n"
+        text shouldContain "- Declined: Notes (com.example.notes)"
+        text shouldNotContain "Affected paths"
+        text shouldNotContain "Attempted paths"
+    }
+
+    @Test
+    fun `a package entry without outcomes says so`() {
+        val text = share(listOf(packageEntry(emptyList())))
+
+        text shouldContain "No affected apps recorded."
+        text shouldNotContain "No affected paths recorded."
+    }
+
     @Test
     fun `an entry without any paths says so`() {
         val text = share(listOf(entry(affectedPathsCount = 0, paths = emptyList())))

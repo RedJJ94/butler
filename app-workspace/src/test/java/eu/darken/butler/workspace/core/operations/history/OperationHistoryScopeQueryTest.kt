@@ -94,6 +94,7 @@ class OperationHistoryScopeQueryTest : BaseTest() {
                     sortIndex = index,
                 )
             },
+            packages = emptyList(),
             maxItems = 1000,
         )
     }

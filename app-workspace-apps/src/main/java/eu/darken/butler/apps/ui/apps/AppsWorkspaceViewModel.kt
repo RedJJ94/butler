@@ -17,8 +17,10 @@ import eu.darken.butler.apps.core.AppsWorkspace
 import eu.darken.butler.apps.core.details.normalizedAppLabel
 import eu.darken.butler.apps.core.engine.AppItem
 import eu.darken.butler.apps.core.engine.standardTags
+import eu.darken.butler.apps.core.operations.PackageCommand
 import eu.darken.butler.apps.ui.apps.dialogs.AppsDialogState
 import eu.darken.butler.apps.ui.apps.elements.AppsActionBarItem
+import eu.darken.butler.apps.ui.operations.PackageOperationUiController
 import eu.darken.butler.common.coroutine.DispatcherProvider
 import eu.darken.butler.common.datastore.value
 import eu.darken.butler.common.debug.logging.Logging.Priority.*
@@ -44,6 +46,8 @@ import eu.darken.butler.workspace.core.WorkspaceAction
 import eu.darken.butler.workspace.core.WorkspaceProvider
 import eu.darken.butler.workspace.core.WorkspaceRemote
 import eu.darken.butler.workspace.core.createAndFocus
+import eu.darken.butler.workspace.core.operations.OperationFocusRequest
+import eu.darken.butler.workspace.ui.page.WorkspacePageChrome
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -67,7 +71,31 @@ class AppsWorkspaceViewModel @AssistedInject constructor(
     private val appsSettings: AppsSettings,
     private val appSizeCache: AppSizeCache,
     private val tabViewStore: AppsTabViewStore,
+    chromeFactory: WorkspacePageChrome.Factory,
+    operationFocusRequest: OperationFocusRequest,
 ) : ViewModel4(dispatchers, logTag("Apps", "Workspace", id.shortTag, "Page")) {
+
+    private val chrome = chromeFactory.create(id, vmScope)
+
+    val operationsUi = PackageOperationUiController(
+        workspaceId = id,
+        chrome = chrome,
+        operationFocusRequest = operationFocusRequest,
+        scope = vmScope,
+        tag = tag,
+    )
+
+    val shareIntentEvent = chrome.shareIntentEvent
+    val pendingErrorShare = chrome.pendingErrorShare
+
+    fun confirmErrorShare() = chrome.confirmErrorShare()
+
+    fun dismissErrorShare() = chrome.dismissErrorShare()
+
+    override fun onCleared() {
+        operationsUi.onCleared()
+        super.onCleared()
+    }
 
     private val workspaceSource: Flow<AppsWorkspace?> =
         workspaceProvider.retrieve(id)
@@ -107,6 +135,10 @@ class AppsWorkspaceViewModel @AssistedInject constructor(
     private val selectionOpsSignal = Channel<Unit>(Channel.CONFLATED)
 
     init {
+        // A "tap to resolve" notification routes here (see the controller).
+        operationsUi.focusRequestHandler.launchInViewModel()
+        operationsUi.issueRetireHandler.launchInViewModel()
+
         selectionOpsSignal.receiveAsFlow()
             .onEach {
                 while (true) {
@@ -447,26 +479,36 @@ class AppsWorkspaceViewModel @AssistedInject constructor(
     fun performEnableApps(apps: List<AppItem>) = launch {
         log(tag) { "Enabling ${apps.size} apps" }
         dismissDialog()
-        getWorkspace().enableApps(apps)
+        getWorkspace().submit(PackageCommand.Enable(apps.asTargets()))
     }
 
     fun performDisableApps(apps: List<AppItem>) = launch {
         log(tag) { "Disabling ${apps.size} apps" }
         dismissDialog()
-        getWorkspace().disableApps(apps)
+        getWorkspace().submit(PackageCommand.Disable(apps.asTargets()))
     }
 
     fun performUninstallApps(apps: List<AppItem>) = launch {
         log(tag) { "Uninstalling ${apps.size} apps" }
         dismissDialog()
-        getWorkspace().uninstallApps(apps)
+        // Decided once, here: without elevated access Android's own dialog does the removing, one
+        // app after the other.
+        val ready = getReadyState()
+        getWorkspace().submit(
+            PackageCommand.Uninstall(
+                targets = apps.asTargets(),
+                viaSystemDialog = !(ready.hasRoot || ready.hasAdb),
+            )
+        )
     }
 
     fun performClearDataApps(apps: List<AppItem>) = launch {
         log(tag) { "Clearing data for ${apps.size} apps" }
         dismissDialog()
-        getWorkspace().clearDataApps(apps)
+        getWorkspace().submit(PackageCommand.ClearData(apps.asTargets()))
     }
+
+    private fun List<AppItem>.asTargets() = map { PackageCommand.Target(it.pkg.installId, it.label) }
 
     fun closeWorkspace() = launch {
         log(tag) { "Closing workspace" }
@@ -525,6 +567,8 @@ class AppsWorkspaceViewModel @AssistedInject constructor(
 
             // Action bar clicks
             is AppsPageAction.ActionBarClick -> onActionBarClick(action.item)
+
+            is AppsPageAction.OperationBar -> operationsUi.onBarAction(action.action)
         }
     }
 

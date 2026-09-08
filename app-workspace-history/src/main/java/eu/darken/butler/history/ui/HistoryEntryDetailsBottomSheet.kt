@@ -5,12 +5,16 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.twotone.Block
+import androidx.compose.material.icons.twotone.CheckCircle
 import androidx.compose.material.icons.twotone.Error
 import androidx.compose.material.icons.twotone.Schedule
 import androidx.compose.material.icons.twotone.Share
@@ -31,13 +35,22 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.PreviewWrapper as ComposePreviewWrapper
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import eu.darken.butler.common.compose.ButlerPreviewWrapper
+import eu.darken.butler.common.compose.Preview2
 import eu.darken.butler.history.R
+import eu.darken.butler.history.core.isPackageKind
 import eu.darken.butler.history.core.labelRes
+import eu.darken.butler.workspace.core.operations.Operation
 import eu.darken.butler.workspace.core.operations.history.HistoryEntry
+import eu.darken.butler.workspace.core.operations.history.HistoryOutcome
 import eu.darken.butler.workspace.ui.bottomsheet.PaneScopedBottomSheet
+import eu.darken.butler.workspace.ui.operations.details.labelRes
+import kotlin.time.Clock
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 import eu.darken.butler.common.R as CommonR
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -142,66 +155,154 @@ fun HistoryEntryDetailsBottomSheet(
                 )
             }
 
+            if (entry.kind.isPackageKind) {
+                PackagesSection(entry.packages)
+            } else {
+                PathsSection(
+                    entry = entry,
+                    attemptedPaths = attemptedPaths,
+                    attemptedPathsTotal = attemptedPathsTotal,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PathsSection(
+    entry: HistoryEntry,
+    attemptedPaths: List<String>,
+    attemptedPathsTotal: Int,
+) {
+    Text(
+        text = stringResource(R.string.history_detail_label_paths),
+        style = MaterialTheme.typography.titleSmall,
+    )
+
+    if (entry.paths.isEmpty()) {
+        Text(
+            text = stringResource(R.string.history_detail_paths_empty),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (attemptedPaths.isNotEmpty()) {
             Text(
-                text = stringResource(R.string.history_detail_label_paths),
+                text = stringResource(R.string.history_detail_label_attempted_paths),
                 style = MaterialTheme.typography.titleSmall,
             )
-
-            if (entry.paths.isEmpty()) {
-                Text(
-                    text = stringResource(R.string.history_detail_paths_empty),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+            if (attemptedPathsTotal > attemptedPaths.size) {
+                Callout(
+                    icon = Icons.TwoTone.WarningAmber,
+                    iconTint = MaterialTheme.colorScheme.tertiary,
+                    text = stringResource(
+                        R.string.history_detail_attempted_paths_truncated_callout,
+                        attemptedPaths.size,
+                        attemptedPathsTotal,
+                    ),
                 )
-                if (attemptedPaths.isNotEmpty()) {
-                    Text(
-                        text = stringResource(R.string.history_detail_label_attempted_paths),
-                        style = MaterialTheme.typography.titleSmall,
-                    )
-                    if (attemptedPathsTotal > attemptedPaths.size) {
-                        Callout(
-                            icon = Icons.TwoTone.WarningAmber,
-                            iconTint = MaterialTheme.colorScheme.tertiary,
-                            text = stringResource(
-                                R.string.history_detail_attempted_paths_truncated_callout,
-                                attemptedPaths.size,
-                                attemptedPathsTotal,
-                            ),
+            }
+            SelectionContainer {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    attemptedPaths.forEach { path ->
+                        Text(
+                            text = path,
+                            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.MiddleEllipsis,
                         )
                     }
-                    SelectionContainer {
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            attemptedPaths.forEach { path ->
-                                Text(
-                                    text = path,
-                                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.MiddleEllipsis,
-                                )
-                            }
-                        }
-                    }
                 }
-            } else {
-                if (entry.pathsTruncated) {
-                    Callout(
-                        icon = Icons.TwoTone.WarningAmber,
-                        iconTint = MaterialTheme.colorScheme.tertiary,
-                        text = stringResource(
-                            R.string.history_detail_paths_truncated_callout,
-                            entry.paths.size,
-                            entry.affectedPathsCount,
-                        ),
-                    )
+            }
+        }
+    } else {
+        if (entry.pathsTruncated) {
+            Callout(
+                icon = Icons.TwoTone.WarningAmber,
+                iconTint = MaterialTheme.colorScheme.tertiary,
+                text = stringResource(
+                    R.string.history_detail_paths_truncated_callout,
+                    entry.paths.size,
+                    entry.affectedPathsCount,
+                ),
+            )
+        }
+        SelectionContainer {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                entry.paths.forEach { p ->
+                    PathRow(p)
                 }
-                SelectionContainer {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        entry.paths.forEach { p ->
-                            PathRow(p)
-                        }
-                    }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PackagesSection(packages: List<HistoryEntry.PackageOutcome>) {
+    Text(
+        text = stringResource(R.string.history_detail_label_packages),
+        style = MaterialTheme.typography.titleSmall,
+    )
+
+    if (packages.isEmpty()) {
+        Text(
+            text = stringResource(R.string.history_detail_packages_empty),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    } else {
+        SelectionContainer {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                packages.forEach { outcome ->
+                    PackageRow(outcome)
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PackageRow(outcome: HistoryEntry.PackageOutcome) {
+    Row(modifier = Modifier.fillMaxWidth()) {
+        Icon(
+            imageVector = when (outcome.status) {
+                Operation.Report.Packages.Outcome.Status.DONE -> Icons.TwoTone.CheckCircle
+                Operation.Report.Packages.Outcome.Status.FAILED -> Icons.TwoTone.Error
+                Operation.Report.Packages.Outcome.Status.DECLINED -> Icons.TwoTone.Block
+            },
+            contentDescription = stringResource(outcome.status.labelRes),
+            tint = when (outcome.status) {
+                Operation.Report.Packages.Outcome.Status.DONE -> MaterialTheme.colorScheme.primary
+                Operation.Report.Packages.Outcome.Status.FAILED -> MaterialTheme.colorScheme.error
+                Operation.Report.Packages.Outcome.Status.DECLINED -> MaterialTheme.colorScheme.onSurfaceVariant
+            },
+            modifier = Modifier.size(16.dp),
+        )
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = outcome.label,
+                style = MaterialTheme.typography.labelMedium,
+                maxLines = 1,
+                overflow = TextOverflow.MiddleEllipsis,
+            )
+            Text(
+                text = outcome.packageName,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.MiddleEllipsis,
+            )
+            outcome.errorMessage?.takeIf { it.isNotBlank() }?.let { error ->
+                Text(
+                    text = error,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }
@@ -322,4 +423,55 @@ private fun formatDuration(duration: Duration): String {
     } else {
         stringResource(R.string.history_duration_seconds, ms / 1000.0f)
     }
+}
+
+@Preview2
+@ComposePreviewWrapper(ButlerPreviewWrapper::class)
+@Composable
+private fun HistoryEntryDetailsBottomSheetPackagesPreview() {
+    val now = Clock.System.now()
+    HistoryEntryDetailsBottomSheet(
+        entry = HistoryEntry(
+            id = "pkg",
+            kind = Operation.Metadata.Kind.UNINSTALL,
+            intent = null,
+            originType = HistoryEntry.OriginType.APPS,
+            originWorkspaceId = "abc",
+            title = "Uninstall 3 apps",
+            description = "Chrome, System UI, Notes",
+            summary = "1 of 3 uninstalled",
+            startedAt = now - 12.seconds,
+            completedAt = now - 8.seconds,
+            duration = 4.seconds,
+            outcome = HistoryOutcome.PARTIAL,
+            errorMessage = null,
+            errorClass = null,
+            affectedPathsCount = 0,
+            partialErrorCount = 1,
+            pathsTruncated = false,
+            paths = emptyList(),
+            packages = listOf(
+                HistoryEntry.PackageOutcome(
+                    label = "Chrome",
+                    packageName = "com.android.chrome",
+                    status = Operation.Report.Packages.Outcome.Status.DONE,
+                    errorMessage = null,
+                ),
+                HistoryEntry.PackageOutcome(
+                    label = "System UI",
+                    packageName = "com.android.systemui",
+                    status = Operation.Report.Packages.Outcome.Status.FAILED,
+                    errorMessage = "Operation not permitted",
+                ),
+                HistoryEntry.PackageOutcome(
+                    label = "Notes",
+                    packageName = "com.example.notes",
+                    status = Operation.Report.Packages.Outcome.Status.DECLINED,
+                    errorMessage = null,
+                ),
+            ),
+        ),
+        bottomInset = 0.dp,
+        onDismiss = {},
+    )
 }

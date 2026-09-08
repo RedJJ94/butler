@@ -5,22 +5,30 @@ import androidx.test.core.app.ApplicationProvider
 import eu.darken.butler.apps.core.AppSizeCache
 import eu.darken.butler.apps.core.details.components.ComponentEntry
 import eu.darken.butler.apps.core.details.components.ComponentKind
+import eu.darken.butler.apps.core.operations.PackageActionOperation
+import eu.darken.butler.apps.core.operations.PackageCommand
+import eu.darken.butler.apps.core.operations.completedState
+import eu.darken.butler.apps.core.operations.stubPackageOperation
+import eu.darken.butler.apps.core.operations.testTarget
 import eu.darken.butler.apps.ui.apps.preview.AppsMockDataProvider
 import eu.darken.butler.common.files.APath
 import eu.darken.butler.common.files.Existence
 import eu.darken.butler.common.pkgs.Pkg
 import eu.darken.butler.common.pkgs.PkgRepo
 import eu.darken.butler.common.pkgs.features.InstallId
-import eu.darken.butler.common.pkgs.pkgops.PkgOps
 import eu.darken.butler.common.user.UserHandle2
 import eu.darken.butler.permissions.core.PathRequirements
 import eu.darken.butler.workspace.contracts.apps.AppDetailsArguments
 import eu.darken.butler.workspace.core.Workspace
+import eu.darken.butler.workspace.core.operations.Operation
+import eu.darken.butler.workspace.core.operations.OperationsManager
+import eu.darken.butler.workspace.core.operations.current
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
-import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
-import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
@@ -36,8 +44,9 @@ import testhelpers.coroutine.TestDispatcherProvider
 
 /**
  * Disabling the rows in Compose is feedback, not a barrier: two taps can both be delivered before
- * a recomposition, and an uninstall dispatched twice is a second `pm uninstall` on a package the
- * first one is still removing.
+ * a recomposition, and an uninstall dispatched twice is a second removal of a package the first one
+ * is still working on. The check and the submit share a lock, so neither tap can pass the check
+ * before the other has submitted.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -45,14 +54,17 @@ class AppDetailsWorkspacePkgActionGateTest {
 
     private val context = ApplicationProvider.getApplicationContext<Context>()
 
+    private val workspaceId = Workspace.Id()
     private val installId = InstallId(Pkg.Id(PKG), UserHandle2(0))
     private val installed = AppsMockDataProvider.createMockInstalled(packageName = PKG, label = "Butler")
-    private val appInfo = AppInfo(install = installed)
 
-    private val pkgOps = mockk<PkgOps>(relaxed = true)
+    private val operationsManager = OperationsManager(TestDispatcherProvider())
+
+    // Silent until a test finishes it, so a submitted operation stays unfinished as long as needed.
+    private val operationStates = MutableSharedFlow<Operation.State>(replay = 1)
 
     private fun TestScope.createWorkspace(): AppDetailsWorkspace = AppDetailsWorkspace(
-        id = Workspace.Id(),
+        id = workspaceId,
         creationArguments = AppDetailsArguments(installId = installId),
         context = context,
         dispatcherProvider = TestDispatcherProvider(StandardTestDispatcher(testScheduler)),
@@ -60,7 +72,7 @@ class AppDetailsWorkspacePkgActionGateTest {
             every { data } returns MutableStateFlow(PkgRepo.PkgData.from(listOf(installed)))
             coEvery { refresh() } returns listOf(installed)
         },
-        pkgOps = pkgOps,
+        pkgOps = mockk(relaxed = true),
         apkArchiveParser = mockk(relaxed = true),
         appSizeCache = mockk(relaxed = true) {
             every { snapshot } returns MutableStateFlow(AppSizeCache.Snapshot())
@@ -71,67 +83,78 @@ class AppDetailsWorkspacePkgActionGateTest {
         rootManager = mockk(relaxed = true),
         adbManager = mockk(relaxed = true),
         workspaceRemote = mockk(relaxed = true),
+        operationsManager = operationsManager,
+        operationFactory = mockk<PackageActionOperation.Factory> {
+            every { create(any(), any()) } answers {
+                stubPackageOperation(
+                    workspaceId = workspaceId,
+                    states = operationStates,
+                    operationKind = when (secondArg<PackageCommand>()) {
+                        is PackageCommand.SetComponents -> Operation.Metadata.Kind.COMPONENTS
+                        else -> Operation.Metadata.Kind.UNINSTALL
+                    },
+                )
+            }
+        },
     )
+
+    private fun uninstall() = PackageCommand.Uninstall(listOf(testTarget(PKG)), viaSystemDialog = false)
 
     @Test
     fun `a second uninstall while the first runs is rejected`() = runTest {
-        val release = Channel<Unit>(Channel.UNLIMITED)
-        coEvery { pkgOps.uninstall(any(), any()) } coAnswers {
-            release.receive()
-            true
-        }
         val workspace = createWorkspace()
+        val submitted = mutableListOf<Any?>()
 
-        launch { workspace.uninstallApp(appInfo) }
-        advanceUntilIdle()
-        launch { workspace.uninstallApp(appInfo) }
-        advanceUntilIdle()
-
-        release.send(Unit)
+        // Both are launched before the scheduler runs either, which is what two taps delivered
+        // within one frame look like.
+        launch { submitted += workspace.submit(uninstall()) }
+        launch { submitted += workspace.submit(uninstall()) }
         advanceUntilIdle()
 
-        coVerify(exactly = 1) { pkgOps.uninstall(any(), any()) }
+        submitted.count { it != null } shouldBe 1
+        submitted.count { it == null } shouldBe 1
+        operationsManager.current().size shouldBe 1
     }
 
     @Test
     fun `a later uninstall goes through once the first finished`() = runTest {
-        coEvery { pkgOps.uninstall(any(), any()) } returns true
         val workspace = createWorkspace()
 
-        workspace.uninstallApp(appInfo)
-        workspace.uninstallApp(appInfo)
+        workspace.submit(uninstall()).shouldNotBeNull()
+        advanceUntilIdle()
 
-        coVerify(exactly = 2) { pkgOps.uninstall(any(), any()) }
+        operationStates.emit(completedState())
+        advanceUntilIdle()
+
+        workspace.submit(uninstall()).shouldNotBeNull()
     }
 
     /** One lock across both would let a running app action block the component screen. */
     @Test
     fun `a component toggle is not blocked by a running app action`() = runTest {
-        val release = Channel<Unit>(Channel.UNLIMITED)
-        coEvery { pkgOps.uninstall(any(), any()) } coAnswers {
-            release.receive()
-            true
-        }
         val workspace = createWorkspace()
 
-        launch { workspace.uninstallApp(appInfo) }
+        workspace.submit(uninstall())
         advanceUntilIdle()
-        workspace.setComponentsEnabled(
-            listOf(
-                ComponentEntry(
-                    kind = ComponentKind.ACTIVITY,
-                    packageName = PKG,
-                    className = "$PKG.MainActivity",
-                    isExported = true,
-                )
-            ),
-            enabled = false,
+
+        val components = workspace.submit(
+            PackageCommand.SetComponents(
+                target = testTarget(PKG),
+                entries = listOf(
+                    ComponentEntry(
+                        kind = ComponentKind.ACTIVITY,
+                        packageName = PKG,
+                        className = "$PKG.MainActivity",
+                        isExported = true,
+                    )
+                ),
+                enabled = false,
+            )
         )
-
-        coVerify(exactly = 1) { pkgOps.changeComponentState(any(), any(), any(), any()) }
-
-        release.send(Unit)
         advanceUntilIdle()
+
+        components.shouldNotBeNull()
+        operationsManager.current().size shouldBe 2
     }
 
     companion object {
