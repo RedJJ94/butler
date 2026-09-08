@@ -7,6 +7,7 @@ import androidx.compose.material.icons.twotone.Add
 import androidx.compose.material.icons.twotone.Compress
 import androidx.compose.material.icons.twotone.ContentCopy
 import androidx.compose.material.icons.twotone.ContentCut
+import androidx.compose.material.icons.twotone.DataUsage
 import androidx.compose.material.icons.twotone.Delete
 import androidx.compose.material.icons.twotone.DeleteForever
 import androidx.compose.material.icons.twotone.Deselect
@@ -184,6 +185,16 @@ sealed interface ExplorerActionBarItem : WorkspaceActionBarItem {
         ) : Directory {
             override val icon = Icons.TwoTone.Unarchive
             override val label = R.string.explorer_action_extract.toCaString()
+        }
+
+        data class CalculateSizes(
+            override val isEnabled: Boolean = true,
+            /** Accented while this folder has sizes, where tapping opens them instead of recalculating. */
+            override val isAccented: Boolean = false,
+            override val group: WorkspaceActionBarItem.Group = WorkspaceActionBarItem.Group.SECONDARY,
+        ) : Directory {
+            override val icon = Icons.TwoTone.DataUsage
+            override val label = R.string.explorer_action_calculate_sizes.toCaString()
         }
 
         object SelectAll : Directory {

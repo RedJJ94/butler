@@ -153,6 +153,8 @@
     <string name="operations_details_destination_folder">Destination folder</string>
     <string name="operations_details_destination_path">Destination path</string>
     <string name="operations_details_affected_paths_with_count">Affected paths (%d)</string>
+    <string name="operations_details_problems_with_count">Problems (%d)</string>
+    <string name="operations_details_problems_more">%d more not listed</string>
     <string name="operations_details_section_expand">Expand %1$s</string>
     <string name="operations_details_section_collapse">Collapse %1$s</string>
     <string name="workspace_operations_performance_graph_label">Performance graph</string>
