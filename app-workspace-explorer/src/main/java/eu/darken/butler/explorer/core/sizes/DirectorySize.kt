@@ -23,4 +23,12 @@ data class DirectoryScan(
     val itemCount: Long,
     /** Failed locations plus entries the walk could not size. */
     val errorCount: Int,
+    /** The first [DirectorySizeAggregator.MAX_PROBLEMS] of those, for display. */
+    val problems: List<ScanProblem> = emptyList(),
+)
+
+/** A location the walk could not read, or an entry it could not size. */
+data class ScanProblem(
+    val path: APath<*>,
+    val message: String?,
 )

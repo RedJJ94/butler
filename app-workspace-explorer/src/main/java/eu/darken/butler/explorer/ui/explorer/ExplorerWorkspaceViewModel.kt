@@ -1165,6 +1165,7 @@ class ExplorerWorkspaceViewModel @AssistedInject constructor(
                             scannedAt = scan.scannedAt,
                             directoryCount = scan.sizes.size,
                             errorCount = scan.errorCount,
+                            problems = scan.problems,
                         )
                     )
                 } else {

@@ -111,7 +111,7 @@ class CalculateSizesOperation @AssistedInject constructor(
 
         // The walker invokes onError from its own context while entries are consumed in ours, so
         // failures are queued and folded in by the collector instead of racing it.
-        val errors = ConcurrentLinkedQueue<APathLookup<*>>()
+        val errors = ConcurrentLinkedQueue<Pair<APathLookup<*>, String?>>()
 
         val gateway = gatewaySwitch.getGateway(root)
 
@@ -123,7 +123,7 @@ class CalculateSizesOperation @AssistedInject constructor(
         val walkOptions = APathGateway.WalkOptions<APath<*>, APathLookup<APath<*>>>(
             onError = { lookup, error ->
                 log(tag, VERBOSE) { "Error accessing ${lookup.lookedUp}: $error" }
-                errors.add(lookup)
+                errors.add(lookup to (error.message ?: lookup.error))
                 true
             },
         )
@@ -155,6 +155,7 @@ class CalculateSizesOperation @AssistedInject constructor(
                     directoryCount = scan.sizes.size,
                     itemCount = scan.itemCount,
                     errorCount = scan.errorCount,
+                    problems = scan.problems.map { Operation.Report.Problem(it.path, it.message) },
                     wasDiscarded = !stored,
                     performanceHistory = tracker.performanceHistory.copy(totalItems = scan.itemCount.toInt()),
                 ),
@@ -176,12 +177,12 @@ class CalculateSizesOperation @AssistedInject constructor(
     }
 
     private fun DirectorySizeAggregator.drain(
-        errors: ConcurrentLinkedQueue<APathLookup<*>>,
+        errors: ConcurrentLinkedQueue<Pair<APathLookup<*>, String?>>,
         topLevel: TopLevelProgress?,
     ) {
         while (true) {
-            val lookup = errors.poll() ?: break
-            onError(lookup)
+            val (lookup, message) = errors.poll() ?: break
+            onError(lookup, message)
             topLevel?.onSeen(lookup.path)
         }
     }
@@ -191,6 +192,7 @@ class CalculateSizesOperation @AssistedInject constructor(
         val directoryCount: Int,
         val itemCount: Long,
         val errorCount: Int,
+        override val problems: List<Operation.Report.Problem>,
         val wasDiscarded: Boolean,
         override val performanceHistory: PerformanceHistory? = null,
     ) : ExplorerOperation.Report {

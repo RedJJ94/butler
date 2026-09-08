@@ -371,15 +371,10 @@
 
     <!-- Folder Sizes -->
     <string name="explorer_sizes_sheet_title">Folder sizes</string>
-    <string name="explorer_sizes_sheet_calculated_at">Calculated %1$s</string>
-    <plurals name="explorer_sizes_sheet_folders">
-        <item quantity="one">%1$d folder measured</item>
-        <item quantity="other">%1$d folders measured</item>
-    </plurals>
-    <plurals name="explorer_sizes_sheet_unreadable">
-        <item quantity="one">%1$d location could not be read</item>
-        <item quantity="other">%1$d locations could not be read</item>
-    </plurals>
+    <string name="explorer_sizes_sheet_label_calculated">Calculated</string>
+    <string name="explorer_sizes_sheet_label_folders">Folders</string>
+    <string name="explorer_sizes_sheet_label_unreadable">Unreadable locations</string>
+    <string name="explorer_sizes_sheet_problems_more">%1$d more not listed</string>
     <string name="explorer_sizes_sheet_recalculate">Recalculate</string>
     <string name="explorer_sizes_sheet_discard">Discard sizes</string>
 

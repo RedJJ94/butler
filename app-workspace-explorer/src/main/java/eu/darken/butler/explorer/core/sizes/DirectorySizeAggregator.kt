@@ -15,6 +15,7 @@ class DirectorySizeAggregator(private val root: APath<*>) {
     private val rootKey = root.path
     private val sizes = HashMap<String, Long>().apply { put(rootKey, 0L) }
     private val incomplete = HashSet<String>()
+    private val problems = ArrayList<ScanProblem>()
 
     var itemCount: Long = 0
         private set
@@ -35,7 +36,7 @@ class DirectorySizeAggregator(private val root: APath<*>) {
             FileType.FILE, FileType.SYMBOLIC_LINK -> {
                 val size = lookup.size
                 if (size == null) {
-                    errorCount++
+                    recordProblem(lookup, lookup.error)
                     markIncomplete(parentKey(key))
                 } else {
                     forEachAncestorDir(key) { sizes[it] = (sizes[it] ?: 0L) + size }
@@ -43,7 +44,7 @@ class DirectorySizeAggregator(private val root: APath<*>) {
             }
 
             FileType.UNKNOWN -> {
-                errorCount++
+                recordProblem(lookup, lookup.error)
                 markIncomplete(parentKey(key))
             }
         }
@@ -54,8 +55,8 @@ class DirectorySizeAggregator(private val root: APath<*>) {
      * reported against the subtree root only, so everything already recorded below [lookup] holds a
      * truncated total and has to be marked too.
      */
-    fun onError(lookup: APathLookup<*>) {
-        errorCount++
+    fun onError(lookup: APathLookup<*>, message: String?) {
+        recordProblem(lookup, message)
         val key = lookup.path
         if (key != rootKey && !isUnderRoot(key)) return
 
@@ -76,7 +77,14 @@ class DirectorySizeAggregator(private val root: APath<*>) {
         sizes = sizes.mapValues { (key, bytes) -> DirectorySize(bytes, key !in incomplete) },
         itemCount = itemCount,
         errorCount = errorCount,
+        problems = problems.toList(),
     )
+
+    /** Every problem is counted, only the first [MAX_PROBLEMS] are kept for display. */
+    private fun recordProblem(lookup: APathLookup<*>, message: String?) {
+        errorCount++
+        if (problems.size < MAX_PROBLEMS) problems.add(ScanProblem(lookup.lookedUp, message))
+    }
 
     private fun markIncomplete(key: String) {
         var current = key
@@ -106,4 +114,8 @@ class DirectorySizeAggregator(private val root: APath<*>) {
 
     private fun isUnderRoot(path: String): Boolean =
         path != rootKey && path.startsWith(if (rootKey == "/") "/" else "$rootKey/")
+
+    companion object {
+        const val MAX_PROBLEMS = 500
+    }
 }

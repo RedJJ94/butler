@@ -1,19 +1,37 @@
 package eu.darken.butler.explorer.ui.explorer.dialogs
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.twotone.DataUsage
+import androidx.compose.material.icons.twotone.ExpandLess
+import androidx.compose.material.icons.twotone.ExpandMore
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.PreviewWrapper as ComposePreviewWrapper
 import androidx.compose.ui.unit.Dp
@@ -21,12 +39,15 @@ import androidx.compose.ui.unit.dp
 import eu.darken.butler.common.compose.ButlerPreviewWrapper
 import eu.darken.butler.common.compose.Preview2
 import eu.darken.butler.common.compose.PreviewWrapper
+import eu.darken.butler.common.compose.asComposable
 import eu.darken.butler.common.files.LocalPath
 import eu.darken.butler.common.formatRelativeTime
 import eu.darken.butler.explorer.R
+import eu.darken.butler.explorer.core.sizes.ScanProblem
 import eu.darken.butler.workspace.ui.bottomsheet.PaneScopedBottomSheet
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.minutes
+import eu.darken.butler.workspace.R as WorkspaceR
 
 /**
  * What the sizes currently shown in the listing are, and the two things that can be done with them.
@@ -62,8 +83,11 @@ private fun CalculatedSizesContent(
     state: ExplorerDialogState.CalculatedSizes,
     onRecalculate: () -> Unit,
     onDiscard: () -> Unit,
+    initiallyShowProblems: Boolean = false,
 ) {
     val context = LocalContext.current
+    var showProblems by rememberSaveable { mutableStateOf(initiallyShowProblems) }
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -72,10 +96,24 @@ private fun CalculatedSizesContent(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(
-                text = stringResource(R.string.explorer_sizes_sheet_title),
-                style = MaterialTheme.typography.titleLarge,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = Icons.TwoTone.DataUsage,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp),
+                )
+
+                Spacer(modifier = Modifier.width(16.dp))
+
+                Text(
+                    text = stringResource(R.string.explorer_sizes_sheet_title),
+                    style = MaterialTheme.typography.titleLarge,
+                )
+            }
             Text(
                 text = state.root.userReadablePath.get(context),
                 style = MaterialTheme.typography.bodyMedium,
@@ -85,32 +123,43 @@ private fun CalculatedSizesContent(
             )
         }
 
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(
-                text = stringResource(
-                    R.string.explorer_sizes_sheet_calculated_at,
-                    formatRelativeTime(state.scannedAt),
-                ),
-                style = MaterialTheme.typography.bodyMedium,
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            InfoRow(
+                label = stringResource(R.string.explorer_sizes_sheet_label_calculated),
+                value = formatRelativeTime(state.scannedAt),
             )
-            Text(
-                text = pluralStringResource(
-                    R.plurals.explorer_sizes_sheet_folders,
-                    state.directoryCount,
-                    state.directoryCount,
-                ),
-                style = MaterialTheme.typography.bodyMedium,
+            InfoRow(
+                label = stringResource(R.string.explorer_sizes_sheet_label_folders),
+                value = state.directoryCount.toString(),
             )
+
             if (state.errorCount > 0) {
-                Text(
-                    text = pluralStringResource(
-                        R.plurals.explorer_sizes_sheet_unreadable,
-                        state.errorCount,
-                        state.errorCount,
-                    ),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error,
+                val unreadableLabel = stringResource(R.string.explorer_sizes_sheet_label_unreadable)
+                InfoRow(
+                    modifier = Modifier.clickable { showProblems = !showProblems },
+                    label = unreadableLabel,
+                    value = state.errorCount.toString(),
+                    valueColor = MaterialTheme.colorScheme.error,
+                    trailing = {
+                        Icon(
+                            imageVector = if (showProblems) Icons.TwoTone.ExpandLess else Icons.TwoTone.ExpandMore,
+                            contentDescription = if (showProblems) {
+                                stringResource(WorkspaceR.string.operations_details_section_collapse, unreadableLabel)
+                            } else {
+                                stringResource(WorkspaceR.string.operations_details_section_expand, unreadableLabel)
+                            },
+                            modifier = Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    },
                 )
+
+                AnimatedVisibility(visible = showProblems) {
+                    ProblemList(
+                        problems = state.problems,
+                        totalCount = state.errorCount,
+                    )
+                }
             }
         }
 
@@ -128,11 +177,116 @@ private fun CalculatedSizesContent(
     }
 }
 
-private fun previewState(errorCount: Int) = ExplorerDialogState.CalculatedSizes(
+@Composable
+private fun InfoRow(
+    modifier: Modifier = Modifier,
+    label: String,
+    value: String,
+    valueColor: Color = MaterialTheme.colorScheme.onSurface,
+    trailing: @Composable (() -> Unit)? = null,
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodyMedium,
+                color = valueColor,
+            )
+            trailing?.invoke()
+        }
+    }
+}
+
+@Composable
+private fun ProblemList(
+    modifier: Modifier = Modifier,
+    problems: List<ScanProblem>,
+    totalCount: Int,
+) {
+    LazyColumn(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(max = 240.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        items(
+            items = problems,
+            key = { it.path.path },
+        ) { problem ->
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = problem.path.userReadablePath.asComposable(),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                    maxLines = 1,
+                    overflow = TextOverflow.MiddleEllipsis,
+                )
+
+                problem.message?.takeIf { it.isNotBlank() }?.let { message ->
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+
+        if (totalCount > problems.size) {
+            item {
+                Text(
+                    modifier = Modifier.padding(top = 4.dp),
+                    text = stringResource(
+                        R.string.explorer_sizes_sheet_problems_more,
+                        totalCount - problems.size,
+                    ),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+private val previewProblems = listOf(
+    ScanProblem(
+        path = LocalPath.build("/storage/emulated/0/Download/Android/data/com.example.app"),
+        message = "Permission denied",
+    ),
+    ScanProblem(
+        path = LocalPath.build("/storage/emulated/0/Download/broken.link"),
+        message = "No such file or directory",
+    ),
+    ScanProblem(
+        path = LocalPath.build("/storage/emulated/0/Download/clip.mkv"),
+        message = null,
+    ),
+)
+
+private fun previewState(
+    errorCount: Int = 0,
+    problems: List<ScanProblem> = emptyList(),
+) = ExplorerDialogState.CalculatedSizes(
     root = LocalPath.build("/storage/emulated/0/Download"),
     scannedAt = Clock.System.now() - 5.minutes,
     directoryCount = 128,
     errorCount = errorCount,
+    problems = problems,
 )
 
 @Preview2
@@ -141,7 +295,7 @@ private fun previewState(errorCount: Int) = ExplorerDialogState.CalculatedSizes(
 private fun CalculatedSizesSheetPreview() {
     PreviewWrapper {
         CalculatedSizesContent(
-            state = previewState(errorCount = 0),
+            state = previewState(),
             onRecalculate = {},
             onDiscard = {},
         )
@@ -154,9 +308,37 @@ private fun CalculatedSizesSheetPreview() {
 private fun CalculatedSizesSheetPartialPreview() {
     PreviewWrapper {
         CalculatedSizesContent(
-            state = previewState(errorCount = 7),
+            state = previewState(errorCount = previewProblems.size, problems = previewProblems),
             onRecalculate = {},
             onDiscard = {},
+        )
+    }
+}
+
+@Preview2
+@ComposePreviewWrapper(ButlerPreviewWrapper::class)
+@Composable
+private fun CalculatedSizesSheetProblemsPreview() {
+    PreviewWrapper {
+        CalculatedSizesContent(
+            state = previewState(errorCount = previewProblems.size, problems = previewProblems),
+            onRecalculate = {},
+            onDiscard = {},
+            initiallyShowProblems = true,
+        )
+    }
+}
+
+@Preview2
+@ComposePreviewWrapper(ButlerPreviewWrapper::class)
+@Composable
+private fun CalculatedSizesSheetProblemsCappedPreview() {
+    PreviewWrapper {
+        CalculatedSizesContent(
+            state = previewState(errorCount = 512, problems = previewProblems),
+            onRecalculate = {},
+            onDiscard = {},
+            initiallyShowProblems = true,
         )
     }
 }

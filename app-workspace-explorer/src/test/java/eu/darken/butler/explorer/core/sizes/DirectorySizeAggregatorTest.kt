@@ -61,7 +61,7 @@ class DirectorySizeAggregatorTest : BaseTest() {
             onEntry(dir("/a/b/locked"))
             onEntry(dir("/a/sibling"))
             onEntry(file("/a/sibling/file", 20L))
-            onError(dir("/a/b/locked"))
+            onError(dir("/a/b/locked"), "denied")
         }.result(scannedAt)
 
         scan.sizes.getValue("/a/b/locked").isComplete shouldBe false
@@ -78,7 +78,7 @@ class DirectorySizeAggregatorTest : BaseTest() {
             onEntry(file("/a/b/c/file", 10L))
             onEntry(dir("/a/sibling"))
             onEntry(file("/a/sibling/file", 20L))
-            onError(dir("/a/b"))
+            onError(dir("/a/b"), "denied")
         }.result(scannedAt)
 
         scan.sizes.getValue("/a/b/c").isComplete shouldBe false
@@ -135,7 +135,7 @@ class DirectorySizeAggregatorTest : BaseTest() {
             onEntry(dir("/a/b"))
             onEntry(file("/a/b/one", 1L))
             onEntry(file("/a/b/two", null))
-            onError(dir("/a/c"))
+            onError(dir("/a/c"), "denied")
         }.result(scannedAt)
 
         scan.itemCount shouldBe 3
@@ -157,5 +157,29 @@ class DirectorySizeAggregatorTest : BaseTest() {
         scan.itemCount shouldBe 1
         scan.sizes.getValue("/a") shouldBe DirectorySize(0L, true)
         scan.sizes.keys shouldBe setOf("/a")
+    }
+
+    @Test
+    fun `a failed location is recorded with its path and message`() {
+        val scan = aggregator("/a").apply {
+            onEntry(file("/a/nosize", null))
+            onEntry(unknown("/a/mystery"))
+            onError(dir("/a/locked"), "Permission denied")
+        }.result(scannedAt)
+
+        scan.problems.map { it.path.path } shouldBe listOf("/a/nosize", "/a/mystery", "/a/locked")
+        scan.problems[1].message shouldBe "unreadable"
+        scan.problems[2].message shouldBe "Permission denied"
+    }
+
+    @Test
+    fun `problems are capped while errors keep counting`() {
+        val scan = aggregator("/a").apply {
+            repeat(DirectorySizeAggregator.MAX_PROBLEMS + 10) { onError(dir("/a/locked_$it"), "denied") }
+        }.result(scannedAt)
+
+        scan.errorCount shouldBe DirectorySizeAggregator.MAX_PROBLEMS + 10
+        scan.problems.size shouldBe DirectorySizeAggregator.MAX_PROBLEMS
+        scan.problems.last().path.path shouldBe "/a/locked_${DirectorySizeAggregator.MAX_PROBLEMS - 1}"
     }
 }

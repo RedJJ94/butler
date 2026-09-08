@@ -9,6 +9,7 @@ import eu.darken.butler.explorer.core.FileTypeFilter
 import eu.darken.butler.explorer.core.SortSettings
 import eu.darken.butler.explorer.core.engine.ExplorerItem
 import eu.darken.butler.explorer.core.operations.ExplorerCommand
+import eu.darken.butler.explorer.core.sizes.ScanProblem
 import eu.darken.butler.workspace.contracts.dnd.WorkspaceDragPayload
 import eu.darken.butler.workspace.core.clipboard.ClipboardClip
 import kotlin.time.Instant
@@ -78,6 +79,8 @@ sealed interface ExplorerDialogState {
         val scannedAt: Instant,
         val directoryCount: Int,
         val errorCount: Int,
+        /** Capped by the scan, so shorter than [errorCount] on a folder with many unreadable spots. */
+        val problems: List<ScanProblem> = emptyList(),
     ) : ExplorerDialogState
 
     data class FilterOptions(
