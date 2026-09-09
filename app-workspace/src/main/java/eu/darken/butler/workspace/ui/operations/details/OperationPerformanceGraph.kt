@@ -57,6 +57,9 @@ import kotlin.time.Duration.Companion.milliseconds
 
 private val TAG = logTag("PerformanceGraph")
 
+/** Upper bound on the x values the bottom axis enumerates per draw. */
+private const val MAX_AXIS_STEPS = 200
+
 
 @Composable
 fun OperationPerformanceGraph(
@@ -70,10 +73,10 @@ fun OperationPerformanceGraph(
     val modelProducer = remember(byteSpeeds != null) { CartesianChartModelProducer() }
 
     LaunchedEffect(graphData) {
-        log(TAG, DEBUG) { "Plotting ${graphData.progress.size} points" }
+        log(TAG, DEBUG) { "Plotting ${graphData.elapsedSeconds.size} points" }
         modelProducer.runTransaction {
-            if (byteSpeeds != null) lineSeries { series(x = graphData.progress, y = byteSpeeds) }
-            lineSeries { series(x = graphData.progress, y = graphData.itemSpeeds) }
+            if (byteSpeeds != null) lineSeries { series(x = graphData.elapsedSeconds, y = byteSpeeds) }
+            lineSeries { series(x = graphData.elapsedSeconds, y = graphData.itemSpeeds) }
         }
     }
 
@@ -181,6 +184,10 @@ fun OperationPerformanceGraph(
                         guideline = null,  // Hide grid lines
                         tick = null,  // Hide tick marks
                     ),
+                    // Without a step the axis would enumerate one value per grid point of a long operation
+                    getXStep = { model ->
+                        (model.width / MAX_AXIS_STEPS).coerceAtLeast(PLOT_STEP_SECONDS.toDouble())
+                    },
                 ),
                 modelProducer = modelProducer,
                 zoomState = rememberVicoZoomState(
@@ -246,10 +253,6 @@ private fun speedRangeProvider(rangeMaxY: Double) = object : CartesianLayerRange
     override fun getMinY(minY: Double, maxY: Double, extraStore: ExtraStore): Double = 0.0
 
     override fun getMaxY(minY: Double, maxY: Double, extraStore: ExtraStore): Double = rangeMaxY
-
-    override fun getMinX(minX: Double, maxX: Double, extraStore: ExtraStore): Double = 0.0
-
-    override fun getMaxX(minX: Double, maxX: Double, extraStore: ExtraStore): Double = 100.0
 }
 
 /** Slow axes need decimals, fast ones would only repeat the same rounded label. */

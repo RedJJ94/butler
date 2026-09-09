@@ -48,11 +48,13 @@ class OperationPerformanceGraphSectionTest : ComposeTest() {
         totalBytes: Long = 1_000_000_000L,
         totalItems: Int = 20,
         spacing: Duration = 250.milliseconds,
+        jitter: Duration = Duration.ZERO,
         advancing: Boolean = true,
     ) = PerformanceHistory(
         samples = (0 until sampleCount).map { i ->
             PerformanceSample(
-                timestamp = startTime + spacing * i,
+                // Wall-clock sampling doesn't land on exact steps, jitter models that
+                timestamp = startTime + spacing * i + (if (i % 2 == 0) Duration.ZERO else jitter),
                 bytesPerSecond = 50_000_000L,
                 itemsPerSecond = 5f,
                 totalBytesProcessed = if (advancing) i * 50_000_000L else 0L,
@@ -132,7 +134,7 @@ class OperationPerformanceGraphSectionTest : ComposeTest() {
     fun `real graph renders for a byte and item history`() {
         composeTestRule.setContent {
             PreviewWrapper {
-                OperationPerformanceGraphSection(operation = operation(running(history())))
+                OperationPerformanceGraphSection(operation = operation(running(history(jitter = (-1).milliseconds))))
             }
         }
 
@@ -220,11 +222,12 @@ class OperationPerformanceGraphSectionTest : ComposeTest() {
     }
 
     @Test
-    fun `a running operation stuck on one progress step is still collecting`() {
+    fun `a running operation with a pinned progress counter shows the graph`() {
         setSection(running(history(totalItems = 0, advancing = false)))
 
         composeTestRule.onNodeWithContentDescription(expandLabel).performClick()
-        composeTestRule.onNodeWithText(collectingText).assertIsDisplayed()
+        composeTestRule.onNodeWithTag(graphTag).assertIsDisplayed()
+        composeTestRule.onNodeWithText(collectingText).assertDoesNotExist()
     }
 
     @Test
@@ -236,11 +239,12 @@ class OperationPerformanceGraphSectionTest : ComposeTest() {
     }
 
     @Test
-    fun `a completed operation without totals has insufficient data`() {
+    fun `a completed operation without totals shows the graph`() {
         setSection(completed(history(totalBytes = 0L, totalItems = 0)))
 
         composeTestRule.onNodeWithContentDescription(expandLabel).performClick()
-        composeTestRule.onNodeWithText(insufficientText).assertIsDisplayed()
+        composeTestRule.onNodeWithTag(graphTag).assertIsDisplayed()
+        composeTestRule.onNodeWithText(insufficientText).assertDoesNotExist()
     }
 
     @Test

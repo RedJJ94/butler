@@ -2,8 +2,8 @@ package eu.darken.butler.workspace.ui.operations.details
 
 import eu.darken.butler.common.files.local.operations.core.PerformanceHistory
 import eu.darken.butler.common.files.local.operations.core.PerformanceSample
-import kotlin.math.max
 import kotlin.math.round
+import kotlin.time.Instant
 
 enum class ByteSpeedUnit(val divisor: Double) {
     B_S(1.0),
@@ -12,16 +12,20 @@ enum class ByteSpeedUnit(val divisor: Double) {
     GB_S(1_000_000_000.0),
 }
 
+/** Grid the x values are snapped to, in seconds. */
+internal const val PLOT_STEP_SECONDS = 0.5f
+
 /**
  * Plot-ready series for [OperationPerformanceGraph].
  *
- * All series share the [progress] x values, which are completion percentages rounded to 0.5 steps.
+ * All series share the [elapsedSeconds] x values, seconds since the operation started, snapped to
+ * [PLOT_STEP_SECONDS] steps.
  *
  * [recentBytesPerSecond] and [recentItemsPerSecond] are averages over the raw history, not over the
  * decimated and smoothed series, so they stay the speeds the operation actually reported last.
  */
 data class PerformanceGraphData(
-    val progress: List<Float>,
+    val elapsedSeconds: List<Float>,
     val byteSpeeds: List<Float>?,
     val itemSpeeds: List<Float>,
     val byteUnit: ByteSpeedUnit?,
@@ -32,52 +36,39 @@ data class PerformanceGraphData(
 ) {
 
     companion object {
-        private const val PROGRESS_STEP = 0.5f
         private const val SMOOTHING_WINDOW = 10
 
         fun from(history: PerformanceHistory): PerformanceGraphData? {
             if (!history.canShowGraph) return null
-            // Without either total there is no x domain, every percentage would divide by zero
-            if (history.totalBytes == 0L && history.totalItems == 0) return null
+
+            val origin = history.startTime ?: history.samples.first().timestamp
 
             val samples = mutableListOf<PerformanceSample>()
-            val progress = mutableListOf<Float>()
+            val elapsedSeconds = mutableListOf<Float>()
 
             history.samples.forEach { sample ->
-                val x = history.progressOf(sample)
-                if (progress.isEmpty() || x - progress.last() >= PROGRESS_STEP) {
+                val x = elapsedSecondsOf(sample, origin)
+                if (elapsedSeconds.isEmpty() || x > elapsedSeconds.last()) {
                     samples.add(sample)
-                    progress.add(x)
+                    elapsedSeconds.add(x)
                 }
             }
 
-            // The final state matters even when it didn't advance enough to pass the filter
+            // The final state matters even when it didn't reach the next grid step
             val finalSample = history.samples.last()
             if (samples.last() !== finalSample) {
-                val finalX = history.progressOf(finalSample)
-                when {
-                    finalX == progress.last() -> {
-                        samples[samples.lastIndex] = finalSample
-                        progress[progress.lastIndex] = finalX
-                    }
-                    // Defensive: non-monotonic sample order (e.g. a wall-clock jump) can move the final sample back onto steps already plotted
-                    finalX < progress.last() -> {
-                        while (progress.isNotEmpty() && progress.last() >= finalX) {
-                            samples.removeAt(samples.lastIndex)
-                            progress.removeAt(progress.lastIndex)
-                        }
-                        samples.add(finalSample)
-                        progress.add(finalX)
-                    }
-                    else -> {
-                        samples.add(finalSample)
-                        progress.add(finalX)
-                    }
+                val finalX = elapsedSecondsOf(finalSample, origin)
+                if (finalX > elapsedSeconds.last()) {
+                    samples.add(finalSample)
+                    elapsedSeconds.add(finalX)
+                } else {
+                    // Keeping the plotted x also covers a wall-clock jump moving the final sample back
+                    samples[samples.lastIndex] = finalSample
                 }
             }
 
-            // A flat x domain (e.g. an all-skipped operation) has nothing to plot against
-            if (progress.distinct().size < 2) return null
+            // Distinct by construction, so this only fires when fewer than two samples survived
+            if (elapsedSeconds.distinct().size < 2) return null
 
             val hasByteData = history.samples.any { it.bytesPerSecond > 0L || it.totalBytesProcessed > 0L }
             val byteUnit = if (hasByteData) unitFor(samples.maxOf { it.bytesPerSecond }) else null
@@ -88,7 +79,7 @@ data class PerformanceGraphData(
             val itemSpeeds = samples.map { it.itemsPerSecond.toDouble() }.trailingAverage()
 
             return PerformanceGraphData(
-                progress = progress,
+                elapsedSeconds = elapsedSeconds,
                 byteSpeeds = byteSpeeds,
                 itemSpeeds = itemSpeeds,
                 byteUnit = byteUnit,
@@ -100,24 +91,15 @@ data class PerformanceGraphData(
         }
 
         /**
-         * Completion percentage of a sample, rounded to 0.5 steps.
+         * Seconds since [origin], snapped to [PLOT_STEP_SECONDS] steps.
          *
-         * Bytes and items are unified via max() so that operations where one metric stalls, e.g. a
-         * copy that skips items, still reach 100%.
+         * The fixed grid keeps the chart's x step exact, bounds how many x values the axis
+         * enumerates per draw, and makes a sample's inclusion depend only on earlier samples, so
+         * points already plotted are never re-placed.
          */
-        private fun PerformanceHistory.progressOf(sample: PerformanceSample): Float {
-            val bytesPercentage = if (totalBytes > 0L) {
-                (sample.totalBytesProcessed.toFloat() / totalBytes.toFloat()) * 100f
-            } else {
-                0f
-            }
-            val itemsPercentage = if (totalItems > 0) {
-                (sample.totalItemsProcessed.toFloat() / totalItems.toFloat()) * 100f
-            } else {
-                0f
-            }
-            val raw = max(bytesPercentage.coerceIn(0f, 100f), itemsPercentage.coerceIn(0f, 100f))
-            return round(raw * 2) / 2f
+        private fun elapsedSecondsOf(sample: PerformanceSample, origin: Instant): Float {
+            val raw = (sample.timestamp - origin).inWholeMilliseconds / 1000f
+            return (round(raw / PLOT_STEP_SECONDS) * PLOT_STEP_SECONDS).coerceAtLeast(0f)
         }
 
         private fun unitFor(maxBytesPerSecond: Long): ByteSpeedUnit = when {
