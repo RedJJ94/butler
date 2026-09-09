@@ -1006,6 +1006,33 @@ class PerformanceHistoryTest : BaseTest() {
         }
     }
 
+    @Test
+    fun `a totals-free history keeps its most recent window after compaction`() {
+        val startTime = Instant.fromEpochMilliseconds(1000)
+        var history = PerformanceHistory()
+
+        repeat(1001) { i ->
+            history = history.addSample(
+                PerformanceSample(
+                    timestamp = startTime + (i * 250).milliseconds,
+                    bytesPerSecond = 1_000_000L,
+                    itemsPerSecond = 10f,
+                    totalBytesProcessed = 0L,
+                    totalItemsProcessed = 0,
+                ),
+                totalBytes = 0L,  // No total to calculate percentage
+                totalItems = 0,
+            )
+        }
+
+        // Everything before the window is dropped while startTime stays put, so consumers plotting
+        // against elapsed time see a window that begins long after the operation started
+        history.samples shouldHaveSize 800
+        history.samples.first().timestamp shouldBe startTime + (201 * 250).milliseconds
+        history.samples.last().timestamp shouldBe startTime + (1000 * 250).milliseconds
+        history.startTime shouldBe startTime
+    }
+
     // ============ EDGE CASES ============
 
     @Test
