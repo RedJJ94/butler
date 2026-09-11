@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.PreviewWrapper as ComposePreviewWrapper
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import dagger.hilt.EntryPoint
@@ -34,6 +35,7 @@ import eu.darken.butler.common.adb.shizuku.ShizukuServiceState
 import eu.darken.butler.common.compose.ButlerPreviewWrapper
 import eu.darken.butler.common.compose.Preview2
 import eu.darken.butler.common.compose.PreviewWrapper
+import eu.darken.butler.common.pkgs.Pkg
 import eu.darken.butler.common.pkgs.getIcon2
 import eu.darken.butler.common.pkgs.getLabel2
 import eu.darken.butler.common.pkgs.toPkgId
@@ -58,6 +60,8 @@ fun RootShizukuActions(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        val managerLabel = rememberManagerLabel(shizukuState)
+
         // Connection status for Root/Shizuku
         val connectionStatus = when (item.type) {
             SetupModule.Type.ROOT -> {
@@ -81,7 +85,12 @@ fun RootShizukuActions(
                     shizukuState?.useShizuku != true -> null
                     !shizukuState.isInstalled -> stringResource(R.string.setup_status_not_installed)
                     !shizukuState.isCompatible -> stringResource(R.string.setup_status_unavailable)
-                    shizukuState.ourService -> stringResource(R.string.setup_status_connected)
+                    // Two managers can be installed at once and only one of them is ever bound, so
+                    // "Connected" alone leaves the user unable to tell which. Falls back to the bare
+                    // wording when the label is missing, which is the Root card's case too.
+                    shizukuState.ourService -> managerLabel?.let {
+                        stringResource(R.string.setup_adb_status_connected_via, it)
+                    } ?: stringResource(R.string.setup_status_connected)
                     // Ahead of basicService: Shizuku itself answering says nothing about our service,
                     // and reporting "Connecting…" for a probe that already gave up is what left this
                     // card spinning forever.
@@ -113,23 +122,32 @@ fun RootShizukuActions(
                 )
 
                 connectionStatus?.let { status ->
-                    Text(
-                        text = status,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        if (shizukuState?.ourService == true && shizukuState.isInstalled) {
+                            ManagerIcon(pkg = shizukuState.pkg, size = 18.dp)
+                        }
+
+                        Text(
+                            text = status,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        )
+                    }
                 }
             }
         }
 
-        // Enabled but not connected is a dead end without a way into the manager app. The restart
-        // hint is the exception: the installed manager stays out of reach until the process restarts,
-        // so neither opening nor installing anything is the remedy.
-        if (shizukuState?.useShizuku == true && !shizukuState.ourService && !shizukuState.otherManagerInstalled) {
+        // The restart hint is the one enabled state without an action: the installed manager stays out
+        // of reach until the process restarts, so neither opening nor installing anything is a remedy.
+        if (shizukuState?.useShizuku == true && !shizukuState.otherManagerInstalled) {
             Spacer(modifier = Modifier.height(12.dp))
 
             AdbManagerAction(
                 state = shizukuState,
+                label = managerLabel,
                 onExecuteAction = onExecuteAction,
             )
         }
@@ -174,31 +192,46 @@ fun RootShizukuActions(
     }
 }
 
+/** Display name of the manager backing [state], null while none is installed. */
+@Composable
+private fun rememberManagerLabel(state: ShizukuSetupModule.Result?): String? {
+    val context = LocalContext.current
+    val installed = state?.takeIf { it.isInstalled }
+    val pkg = installed?.pkg
+    val resolved = remember(pkg) { pkg?.let { context.packageManager.getLabel2(it) } }
+    // Not every Result is built with a package manager behind it.
+    return installed?.managerLabel ?: resolved ?: pkg?.name
+}
+
+@Composable
+private fun ManagerIcon(
+    modifier: Modifier = Modifier,
+    pkg: Pkg.Id,
+    size: Dp,
+) {
+    val context = LocalContext.current
+    AsyncImage(
+        model = remember(pkg) { context.packageManager.getIcon2(pkg) },
+        contentDescription = null,
+        modifier = modifier.size(size),
+    )
+}
+
 @Composable
 private fun AdbManagerAction(
     modifier: Modifier = Modifier,
     state: ShizukuSetupModule.Result,
+    label: String?,
     onExecuteAction: (SetupAction) -> Unit,
 ) {
-    val context = LocalContext.current
-
     if (state.isInstalled) {
-        val label = state.managerLabel
-            // Not every Result is built with a package manager behind it.
-            ?: remember(state.pkg) { context.packageManager.getLabel2(state.pkg) }
-            ?: state.pkg.name
-
         OutlinedButton(
             modifier = modifier,
             onClick = { onExecuteAction(SetupAction.OpenAdbManager(state.pkg)) },
         ) {
-            AsyncImage(
-                model = remember(state.pkg) { context.packageManager.getIcon2(state.pkg) },
-                contentDescription = null,
-                modifier = Modifier.size(ButtonDefaults.IconSize),
-            )
+            ManagerIcon(pkg = state.pkg, size = ButtonDefaults.IconSize)
             Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
-            Text(text = stringResource(R.string.setup_adb_open_manager_action, label))
+            Text(text = stringResource(R.string.setup_adb_open_manager_action, label ?: state.pkg.name))
         }
     } else {
         val guide = rememberAdbManagerInstallGuide()
@@ -341,6 +374,31 @@ private fun ShizukuActionsNotConnectedPreview() {
         ),
         onExecuteAction = {},
         switchLabel = "Use Shizuku"
+    )
+}
+
+@Preview2
+@ComposePreviewWrapper(ButlerPreviewWrapper::class)
+@Composable
+private fun ShizukuActionsConnectedPreview() {
+    RootShizukuActions(
+        item = SetupItem(
+            type = SetupModule.Type.SHIZUKU,
+            state = ShizukuSetupModule.Result(
+                pkg = "eu.darken.porter".toPkgId(),
+                useShizuku = true,
+                isCompatible = true,
+                isInstalled = true,
+                managerLabel = "Porter",
+                basicService = true,
+                serviceState = ShizukuServiceState.Available,
+                alsoHasRoot = false,
+            ),
+            isRequired = false,
+            priority = 6,
+        ),
+        onExecuteAction = {},
+        switchLabel = "Use ADB access",
     )
 }
 

@@ -7,6 +7,8 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithText
 import androidx.test.core.app.ApplicationProvider
 import eu.darken.butler.R
 import eu.darken.butler.common.adb.shizuku.ShizukuServiceState
@@ -20,8 +22,8 @@ import org.robolectric.Shadows.shadowOf
 import testhelpers.ComposeTest
 
 /**
- * ADB access enabled but not connected is a dead end without an action: the card names a state and
- * offers no way to reach the manager app that would change it.
+ * Whenever ADB access is enabled, the card has to offer a route to the manager app: naming a state
+ * and stopping there is what left a stranded user with nothing to act on.
  */
 class ShizukuSetupCardActionTest : ComposeTest() {
 
@@ -88,16 +90,31 @@ class ShizukuSetupCardActionTest : ComposeTest() {
     }
 
     @Test
-    fun `a connected card offers no manager action`() {
+    fun `a connected card keeps the manager within reach`() {
         installManager()
 
         render(pkg = MANAGER_PKG, isInstalled = true, serviceState = ShizukuServiceState.Available)
 
         composeTestRule
-            .onAllNodes(hasClickAction() and hasText(MANAGER_LABEL, substring = true))
-            .assertCountEquals(0)
+            .onNode(hasClickAction() and hasText(MANAGER_LABEL, substring = true))
+            .assertIsDisplayed()
         composeTestRule
             .onAllNodes(hasClickAction() and hasText(INSTALL_WORDING, substring = true, ignoreCase = true))
+            .assertCountEquals(0)
+    }
+
+    /** Two managers can be installed at once, so "Connected" on its own does not say which one won. */
+    @Test
+    fun `a connected card names the manager it bound to`() {
+        installManager()
+
+        render(pkg = MANAGER_PKG, isInstalled = true, serviceState = ShizukuServiceState.Available)
+
+        composeTestRule
+            .onNodeWithText(context.getString(R.string.setup_adb_status_connected_via, MANAGER_LABEL))
+            .assertIsDisplayed()
+        composeTestRule
+            .onAllNodesWithText(context.getString(R.string.setup_status_connected))
             .assertCountEquals(0)
     }
 
