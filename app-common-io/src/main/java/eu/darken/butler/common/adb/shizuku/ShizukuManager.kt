@@ -72,6 +72,22 @@ class ShizukuManager @Inject constructor(
      */
     suspend fun installedManagerIds(): Set<Pkg.Id> = shizukuWrapper.getManagerPackages().map { it.toPkgId() }.toSet()
 
+    /** Installed managers of the active backend's family, see [ShizukuWrapper.getActiveManagerPackages]. */
+    suspend fun activeManagerIds(): Set<Pkg.Id> = shizukuWrapper.getActiveManagerPackages().map { it.toPkgId() }.toSet()
+
+    /**
+     * An installed manager belonging to the OTHER family, i.e. one this process cannot talk to.
+     *
+     * The backend latches at provider init, so a manager installed afterwards stays invisible to
+     * [getManagerId] until the app is fully restarted. This is what lets the UI name it.
+     */
+    suspend fun inactiveFamilyManagerId(): Pkg.Id? {
+        val active = shizukuWrapper.getActiveManagerPackages().toSet()
+        return shizukuWrapper.getManagerPackages().firstOrNull { it !in active }?.toPkgId()
+    }
+
+    suspend fun activeBackend(): AdbBackend = shizukuWrapper.activeBackend()
+
     val permissionGrantEvents: Flow<ShizukuWrapper.ShizukuPermissionRequest> = shizukuWrapper.permissionGrantEvents
         .setupCommonEventHandlers(TAG) { "grantEvents" }
         .replayingShare(appScope)
@@ -142,10 +158,12 @@ class ShizukuManager @Inject constructor(
         }
     }
 
-    // Placeholder for previews and for when nothing is installed. Porter is the manager we target
-    // natively, so it is the one to name when there is no installed manager to name instead.
-    val defaultManagerPkgId: Pkg.Id
-        get() = PORTER_PKG_ID
+    // Placeholder for previews and for when nothing is installed: the reference package of the
+    // backend this process would connect through, so it can't name a family we cannot talk to.
+    suspend fun referenceManagerId(): Pkg.Id = when (activeBackend()) {
+        AdbBackend.PORTER -> PORTER_PKG_ID
+        AdbBackend.SHIZUKU -> PKG_ID
+    }
 
     /**
      * The manager package of the backend this process connects through, resolved via that backend's

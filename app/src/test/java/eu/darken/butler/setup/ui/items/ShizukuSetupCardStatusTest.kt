@@ -7,6 +7,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.core.app.ApplicationProvider
 import eu.darken.butler.R
+import eu.darken.butler.common.adb.shizuku.AdbBackend
 import eu.darken.butler.common.compose.PreviewWrapper
 import eu.darken.butler.common.pkgs.toPkgId
 import eu.darken.butler.setup.core.SetupItem
@@ -34,7 +35,8 @@ class ShizukuSetupCardStatusTest : ComposeTest() {
                             useShizuku = useShizuku,
                             isCompatible = true,
                             isInstalled = false,
-                            otherManagerInstalled = true,
+                            restartRequiredFor = OTHER_MANAGER.toPkgId(),
+                            restartRequiredLabel = OTHER_LABEL,
                         ),
                         isRequired = false,
                         priority = 6,
@@ -47,8 +49,41 @@ class ShizukuSetupCardStatusTest : ComposeTest() {
     }
 
     private fun assertRestartHintShown() {
-        composeTestRule.onNodeWithText(context.getString(R.string.setup_adb_restart_required)).assertIsDisplayed()
+        composeTestRule
+            .onNodeWithText(context.getString(R.string.setup_adb_restart_required, OTHER_LABEL))
+            .assertIsDisplayed()
         composeTestRule.onAllNodesWithText(context.getString(R.string.setup_status_not_installed)).assertCountEquals(0)
+    }
+
+    /** Falls back to the other backend's product name, so the hint never renders a bare placeholder. */
+    @Test
+    fun `the hint names the backend when the label cannot be read`() {
+        composeTestRule.setContent {
+            PreviewWrapper {
+                RootShizukuActions(
+                    item = SetupItem(
+                        type = SetupModule.Type.SHIZUKU,
+                        state = ShizukuSetupModule.Result(
+                            pkg = "eu.darken.porter".toPkgId(),
+                            useShizuku = true,
+                            isCompatible = true,
+                            isInstalled = false,
+                            backend = AdbBackend.PORTER,
+                            restartRequiredFor = OTHER_MANAGER.toPkgId(),
+                            restartRequiredLabel = null,
+                        ),
+                        isRequired = false,
+                        priority = 6,
+                    ),
+                    onExecuteAction = {},
+                    switchLabel = context.getString(R.string.setup_use_shizuku_label),
+                )
+            }
+        }
+
+        composeTestRule
+            .onNodeWithText(context.getString(R.string.setup_adb_restart_required, AdbBackend.SHIZUKU.label))
+            .assertIsDisplayed()
     }
 
     @Test
@@ -70,5 +105,10 @@ class ShizukuSetupCardStatusTest : ComposeTest() {
         renderOtherManagerInstalled(true)
 
         assertRestartHintShown()
+    }
+
+    companion object {
+        private const val OTHER_MANAGER = "moe.shizuku.privileged.api"
+        private const val OTHER_LABEL = "Shizuku"
     }
 }

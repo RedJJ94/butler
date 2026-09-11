@@ -44,7 +44,8 @@ class ShizukuSetupCardActionTest : ComposeTest() {
         pkg: String,
         isInstalled: Boolean,
         serviceState: ShizukuServiceState = ShizukuServiceState.NotChecked,
-        otherManagerInstalled: Boolean = false,
+        restartRequiredFor: String? = null,
+        restartRequiredLabel: String? = null,
     ) {
         composeTestRule.setContent {
             PreviewWrapper {
@@ -56,7 +57,8 @@ class ShizukuSetupCardActionTest : ComposeTest() {
                             useShizuku = true,
                             isCompatible = true,
                             isInstalled = isInstalled,
-                            otherManagerInstalled = otherManagerInstalled,
+                            restartRequiredFor = restartRequiredFor?.toPkgId(),
+                            restartRequiredLabel = restartRequiredLabel,
                             serviceState = serviceState,
                         ),
                         isRequired = false,
@@ -122,13 +124,18 @@ class ShizukuSetupCardActionTest : ComposeTest() {
     fun `a manager for the other backend offers no install action`() {
         installManager()
 
-        render(pkg = DEFAULT_MANAGER_PKG, isInstalled = false, otherManagerInstalled = true)
+        render(
+            pkg = DEFAULT_MANAGER_PKG,
+            isInstalled = false,
+            restartRequiredFor = MANAGER_PKG,
+            restartRequiredLabel = MANAGER_LABEL,
+        )
 
         composeTestRule
             .onAllNodes(hasClickAction() and hasText(INSTALL_WORDING, substring = true, ignoreCase = true))
             .assertCountEquals(0)
         composeTestRule
-            .onNode(hasText(context.getString(R.string.setup_adb_restart_required)))
+            .onNode(hasText(context.getString(R.string.setup_adb_restart_required, MANAGER_LABEL)))
             .assertIsDisplayed()
     }
 

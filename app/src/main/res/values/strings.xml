@@ -94,8 +94,8 @@
     <string name="setup_status_connecting">Connecting…</string>
     <string name="setup_status_connection_failed">Connection failed</string>
     <string name="setup_status_unavailable">Unavailable</string>
-    <string name="setup_adb_restart_required">Another ADB access app was installed. Restart Butler to use it.</string>
     <!-- %1$s is the name of the app that provides ADB access, e.g. "Porter" or "Shizuku". -->
+    <string name="setup_adb_restart_required">%1$s is installed, but Butler has to be fully closed and reopened before it can use it.</string>
     <string name="setup_adb_status_connected_via">Connected via %1$s</string>
     <string name="setup_adb_open_manager_action">Open %1$s</string>
     <string name="setup_adb_install_manager_action">Install %1$s</string>

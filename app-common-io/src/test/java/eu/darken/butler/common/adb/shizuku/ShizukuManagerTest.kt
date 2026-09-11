@@ -254,7 +254,25 @@ class ShizukuManagerTest : BaseTest() {
         )
     }
 
-    @Test fun `the default manager package is Porter`() {
-        manager().defaultManagerPkgId shouldBe ShizukuManager.PORTER_PKG_ID
+    @Test fun `the reference package follows the active backend`() {
+        coEvery { shizukuWrapper.activeBackend() } returns AdbBackend.PORTER
+        runBlocking { manager().referenceManagerId() } shouldBe ShizukuManager.PORTER_PKG_ID
+
+        coEvery { shizukuWrapper.activeBackend() } returns AdbBackend.SHIZUKU
+        runBlocking { manager().referenceManagerId() } shouldBe ShizukuManager.PKG_ID
+    }
+
+    @Test fun `the inactive family manager is the one outside the active backend`() {
+        coEvery { shizukuWrapper.getManagerPackages() } returns listOf("eu.darken.porter", "moe.shizuku.privileged.api")
+        coEvery { shizukuWrapper.getActiveManagerPackages() } returns listOf("moe.shizuku.privileged.api")
+
+        runBlocking { manager().inactiveFamilyManagerId() } shouldBe ShizukuManager.PORTER_PKG_ID
+    }
+
+    @Test fun `there is no inactive family manager when every one is reachable`() {
+        coEvery { shizukuWrapper.getManagerPackages() } returns listOf("moe.shizuku.privileged.api")
+        coEvery { shizukuWrapper.getActiveManagerPackages() } returns listOf("moe.shizuku.privileged.api")
+
+        runBlocking { manager().inactiveFamilyManagerId() } shouldBe null
     }
 }

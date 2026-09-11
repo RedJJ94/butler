@@ -77,8 +77,10 @@ fun RootShizukuActions(
                     // Ahead of the useShizuku guard on purpose: the setting defaults to null, so
                     // someone who installs a manager before ever touching the switch is exactly who
                     // needs to be told a restart is what makes it count.
-                    shizukuState?.otherManagerInstalled == true ->
-                        stringResource(R.string.setup_adb_restart_required)
+                    shizukuState?.otherManagerInstalled == true -> stringResource(
+                        R.string.setup_adb_restart_required,
+                        shizukuState.restartRequiredLabel ?: shizukuState.backend.other.label,
+                    )
 
                     shizukuState?.useShizuku != true -> null
                     !shizukuState.isInstalled -> stringResource(R.string.setup_status_not_installed)
@@ -181,14 +183,22 @@ fun RootShizukuActions(
     }
 }
 
-/** Display name of the manager backing [state], null while none is installed. */
+/**
+ * Display name of the manager backing [state], null while none is installed.
+ *
+ * The module resolves this already; the lookup here only covers a Result built without one behind
+ * it (previews, tests). Guarded because it runs on the UI thread and PackageManager can fail with
+ * more than the missing-package case that [getLabel2] already absorbs.
+ */
 @Composable
 private fun rememberManagerLabel(state: ShizukuSetupModule.Result?): String? {
     val context = LocalContext.current
     val installed = state?.takeIf { it.isInstalled }
     val pkg = installed?.pkg
-    val resolved = remember(pkg) { pkg?.let { context.packageManager.getLabel2(it) } }
-    // Not every Result is built with a package manager behind it.
+    val needsLookup = installed != null && installed.managerLabel == null
+    val resolved = remember(pkg, needsLookup) {
+        if (needsLookup) runCatching { context.packageManager.getLabel2(pkg!!) }.getOrNull() else null
+    }
     return installed?.managerLabel ?: resolved ?: pkg?.name
 }
 
@@ -207,7 +217,10 @@ private fun AdbManagerAction(
             onClick = { onExecuteAction(SetupAction.OpenAdbManager(state.pkg)) },
         ) {
             AsyncImage(
-                model = remember(state.pkg) { context.packageManager.getIcon2(state.pkg) },
+                // Same guard as the label: a failed icon load is missing artwork, not a dead card.
+                model = remember(state.pkg) {
+                    runCatching { context.packageManager.getIcon2(state.pkg) }.getOrNull()
+                },
                 contentDescription = null,
                 modifier = Modifier.size(ButtonDefaults.IconSize),
             )
@@ -435,7 +448,8 @@ private fun ShizukuRestartRequiredPreview(useShizuku: Boolean?) {
                 isCompatible = true,
                 // The manager on the device belongs to the backend this process did not latch onto.
                 isInstalled = false,
-                otherManagerInstalled = true,
+                restartRequiredFor = "moe.shizuku.privileged.api".toPkgId(),
+                restartRequiredLabel = "Shizuku",
                 alsoHasRoot = false,
             ),
             isRequired = false,
