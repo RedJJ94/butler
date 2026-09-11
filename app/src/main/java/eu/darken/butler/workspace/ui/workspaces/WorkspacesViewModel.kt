@@ -41,6 +41,7 @@ import eu.darken.butler.workspace.core.WorkspaceRemote
 import eu.darken.butler.workspace.core.WorkspaceRepo
 import eu.darken.butler.workspace.core.WorkspaceSettings
 import eu.darken.butler.workspace.core.undo.ClosedWorkspaceStash
+import eu.darken.butler.workspace.core.layout.RailButtonPlacement
 import eu.darken.butler.workspace.core.layout.WorkspacePanelMode
 import eu.darken.butler.workspace.core.session.SessionRestorationException
 import eu.darken.butler.workspace.ui.WorkspacePageManager
@@ -382,13 +383,14 @@ class WorkspacesViewModel @Inject constructor(
         workspaceSettings.swipeGesturesEnabled.flow,
         workspaceSettings.onDemandWorkspaceCreation.flow,
         workspaceSettings.paneClickToFocus.flow,
+        workspaceSettings.railButtonPlacement.flow,
         workspacePageManager.state,
         visibleMotd,
         sessionManager.state,
         _managerDialogs,
         reviewState,
         guidedTourController.session,
-    ) { repoState, upgradeInfo, swipeGesturesEnabled, onDemandWorkspaceCreation, paneClickToFocus, uiState, motd, restorationState, dialogs, review, tourSession ->
+    ) { repoState, upgradeInfo, swipeGesturesEnabled, onDemandWorkspaceCreation, paneClickToFocus, railButtonPlacement, uiState, motd, restorationState, dialogs, review, tourSession ->
         val base = State(
             state = repoState,
             focusedWorkspace = uiState.focusedWorkspaceId,
@@ -398,6 +400,7 @@ class WorkspacesViewModel @Inject constructor(
             swipeGesturesEnabled = swipeGesturesEnabled,
             onDemandWorkspaceCreation = swipeGesturesEnabled && onDemandWorkspaceCreation,
             paneClickToFocus = paneClickToFocus,
+            railButtonPlacement = railButtonPlacement,
             motd = motd,
             currentPaneCount = uiState.currentPaneCount,
             isRestoring = restorationState == WorkspaceSessionManager.State.Restoring,
@@ -721,6 +724,7 @@ class WorkspacesViewModel @Inject constructor(
         val swipeGesturesEnabled: Boolean = true,
         val onDemandWorkspaceCreation: Boolean = true,
         val paneClickToFocus: Boolean = true,
+        val railButtonPlacement: RailButtonPlacement = RailButtonPlacement.LEADING,
         val motd: MotdState? = null,
         val currentPaneCount: Int = 1,
         val isRestoring: Boolean = false,
