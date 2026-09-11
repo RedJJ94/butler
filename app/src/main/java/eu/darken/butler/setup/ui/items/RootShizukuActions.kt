@@ -6,26 +6,43 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.twotone.Download
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.PreviewWrapper as ComposePreviewWrapper
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
 import eu.darken.butler.R
 import eu.darken.butler.common.adb.shizuku.ShizukuServiceState
 import eu.darken.butler.common.compose.ButlerPreviewWrapper
 import eu.darken.butler.common.compose.Preview2
 import eu.darken.butler.common.compose.PreviewWrapper
+import eu.darken.butler.common.pkgs.getIcon2
+import eu.darken.butler.common.pkgs.getLabel2
 import eu.darken.butler.common.pkgs.toPkgId
 import eu.darken.butler.setup.core.SetupAction
 import eu.darken.butler.setup.core.SetupItem
 import eu.darken.butler.setup.core.SetupModule
 import eu.darken.butler.setup.core.root.RootServiceState
 import eu.darken.butler.setup.core.root.RootSetupModule
+import eu.darken.butler.setup.core.shizuku.AdbManagerInstallGuide
 import eu.darken.butler.setup.core.shizuku.ShizukuSetupModule
 
 @Composable
@@ -35,6 +52,7 @@ fun RootShizukuActions(
     switchLabel: String
 ) {
     val state = item.state as? SetupModule.State.Current
+    val shizukuState = state as? ShizukuSetupModule.Result
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -53,8 +71,13 @@ fun RootShizukuActions(
                 }
             }
             SetupModule.Type.SHIZUKU -> {
-                val shizukuState = state as? ShizukuSetupModule.Result
                 when {
+                    // Ahead of the useShizuku guard on purpose: the setting defaults to null, so
+                    // someone who installs a manager before ever touching the switch is exactly who
+                    // needs to be told a restart is what makes it count.
+                    shizukuState?.otherManagerInstalled == true ->
+                        stringResource(R.string.setup_adb_restart_required)
+
                     shizukuState?.useShizuku != true -> null
                     !shizukuState.isInstalled -> stringResource(R.string.setup_status_not_installed)
                     !shizukuState.isCompatible -> stringResource(R.string.setup_status_unavailable)
@@ -99,6 +122,18 @@ fun RootShizukuActions(
             }
         }
 
+        // Enabled but not connected is a dead end without a way into the manager app. The restart
+        // hint is the exception: the installed manager stays out of reach until the process restarts,
+        // so neither opening nor installing anything is the remedy.
+        if (shizukuState?.useShizuku == true && !shizukuState.ourService && !shizukuState.otherManagerInstalled) {
+            Spacer(modifier = Modifier.height(12.dp))
+
+            AdbManagerAction(
+                state = shizukuState,
+                onExecuteAction = onExecuteAction,
+            )
+        }
+
         Spacer(modifier = Modifier.height(12.dp))
 
         // Switch
@@ -137,6 +172,69 @@ fun RootShizukuActions(
             )
         }
     }
+}
+
+@Composable
+private fun AdbManagerAction(
+    modifier: Modifier = Modifier,
+    state: ShizukuSetupModule.Result,
+    onExecuteAction: (SetupAction) -> Unit,
+) {
+    val context = LocalContext.current
+
+    if (state.isInstalled) {
+        val label = state.managerLabel
+            // Not every Result is built with a package manager behind it.
+            ?: remember(state.pkg) { context.packageManager.getLabel2(state.pkg) }
+            ?: state.pkg.name
+
+        OutlinedButton(
+            modifier = modifier,
+            onClick = { onExecuteAction(SetupAction.OpenAdbManager(state.pkg)) },
+        ) {
+            AsyncImage(
+                model = remember(state.pkg) { context.packageManager.getIcon2(state.pkg) },
+                contentDescription = null,
+                modifier = Modifier.size(ButtonDefaults.IconSize),
+            )
+            Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
+            Text(text = stringResource(R.string.setup_adb_open_manager_action, label))
+        }
+    } else {
+        val guide = rememberAdbManagerInstallGuide()
+        val label = guide?.let { stringResource(it.labelRes) } ?: state.pkg.name
+
+        OutlinedButton(
+            modifier = modifier,
+            onClick = { onExecuteAction(SetupAction.InstallAdbManager) },
+        ) {
+            Icon(
+                imageVector = Icons.TwoTone.Download,
+                contentDescription = null,
+                modifier = Modifier.size(ButtonDefaults.IconSize),
+            )
+            Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
+            Text(text = stringResource(R.string.setup_adb_install_manager_action, label))
+        }
+    }
+}
+
+@Composable
+private fun rememberAdbManagerInstallGuide(): AdbManagerInstallGuide? {
+    val context = LocalContext.current
+    return remember(context) {
+        runCatching {
+            EntryPointAccessors
+                .fromApplication(context.applicationContext, AdbManagerInstallGuideEntryPoint::class.java)
+                .adbManagerInstallGuide()
+        }.getOrNull()
+    }
+}
+
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+internal interface AdbManagerInstallGuideEntryPoint {
+    fun adbManagerInstallGuide(): AdbManagerInstallGuide
 }
 
 @Preview2
@@ -233,6 +331,7 @@ private fun ShizukuActionsNotConnectedPreview() {
                 useShizuku = true,
                 isCompatible = true,
                 isInstalled = true,
+                managerLabel = "Shizuku",
                 basicService = false,
                 serviceState = ShizukuServiceState.NotChecked,
                 alsoHasRoot = false,
@@ -257,6 +356,7 @@ private fun ShizukuActionsConnectionFailedPreview() {
                 useShizuku = true,
                 isCompatible = true,
                 isInstalled = true,
+                managerLabel = "Shizuku",
                 // Shizuku answers, but our user service never came up.
                 basicService = true,
                 serviceState = ShizukuServiceState.TimedOut,
@@ -267,5 +367,65 @@ private fun ShizukuActionsConnectionFailedPreview() {
         ),
         onExecuteAction = {},
         switchLabel = "Use Shizuku"
+    )
+}
+
+@Preview2
+@ComposePreviewWrapper(ButlerPreviewWrapper::class)
+@Composable
+private fun ShizukuActionsRestartRequiredUnsetPreview() = ShizukuRestartRequiredPreview(useShizuku = null)
+
+@Preview2
+@ComposePreviewWrapper(ButlerPreviewWrapper::class)
+@Composable
+private fun ShizukuActionsRestartRequiredDisabledPreview() = ShizukuRestartRequiredPreview(useShizuku = false)
+
+@Preview2
+@ComposePreviewWrapper(ButlerPreviewWrapper::class)
+@Composable
+private fun ShizukuActionsRestartRequiredEnabledPreview() = ShizukuRestartRequiredPreview(useShizuku = true)
+
+@Composable
+private fun ShizukuRestartRequiredPreview(useShizuku: Boolean?) {
+    RootShizukuActions(
+        item = SetupItem(
+            type = SetupModule.Type.SHIZUKU,
+            state = ShizukuSetupModule.Result(
+                pkg = "eu.darken.porter".toPkgId(),
+                useShizuku = useShizuku,
+                isCompatible = true,
+                // The manager on the device belongs to the backend this process did not latch onto.
+                isInstalled = false,
+                otherManagerInstalled = true,
+                alsoHasRoot = false,
+            ),
+            isRequired = false,
+            priority = 6,
+        ),
+        onExecuteAction = {},
+        switchLabel = "Use ADB access",
+    )
+}
+
+@Preview2
+@ComposePreviewWrapper(ButlerPreviewWrapper::class)
+@Composable
+private fun ShizukuActionsNoManagerPreview() {
+    RootShizukuActions(
+        item = SetupItem(
+            type = SetupModule.Type.SHIZUKU,
+            state = ShizukuSetupModule.Result(
+                pkg = "eu.darken.porter".toPkgId(),
+                useShizuku = true,
+                isCompatible = true,
+                isInstalled = false,
+                serviceState = ShizukuServiceState.NotChecked,
+                alsoHasRoot = false,
+            ),
+            isRequired = false,
+            priority = 6,
+        ),
+        onExecuteAction = {},
+        switchLabel = "Use ADB access",
     )
 }

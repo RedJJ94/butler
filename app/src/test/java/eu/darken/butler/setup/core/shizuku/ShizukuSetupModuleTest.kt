@@ -1,5 +1,6 @@
 package eu.darken.butler.setup.core.shizuku
 
+import android.content.Context
 import eu.darken.butler.common.adb.AdbSettings
 import eu.darken.butler.common.adb.shizuku.ShizukuBaseServiceBinder
 import eu.darken.butler.common.adb.shizuku.ShizukuManager
@@ -35,6 +36,7 @@ import java.util.concurrent.TimeUnit
 
 class ShizukuSetupModuleTest : BaseTest() {
 
+    private val context: Context = mockk(relaxed = true)
     private val adbSettings: AdbSettings = mockk()
     private val shizukuManager: ShizukuManager = mockk()
     private val rootManager: RootManager = mockk()
@@ -53,10 +55,11 @@ class ShizukuSetupModuleTest : BaseTest() {
         every { adbSettings.useShizuku } returns useShizukuValue
         every { useShizukuValue.flow } returns useShizukuFlow
 
-        every { shizukuManager.shizukuPkgId } returns "moe.shizuku.privileged.api".toPkgId()
+        every { shizukuManager.defaultManagerPkgId } returns "eu.darken.porter".toPkgId()
         every { shizukuManager.shizukuBinder } returns flowOf(null)
         every { shizukuManager.permissionGrantEvents } returns emptyFlow()
         coEvery { shizukuManager.getManagerId() } returns "moe.shizuku.privileged.api".toPkgId()
+        coEvery { shizukuManager.installedManagerIds() } returns emptySet()
         coEvery { shizukuManager.isCompatible() } returns true
         coEvery { shizukuManager.isGranted() } returns true
         coEvery { shizukuManager.getServiceState() } coAnswers { probeCount++; ShizukuServiceState.Available }
@@ -71,7 +74,7 @@ class ShizukuSetupModuleTest : BaseTest() {
 
     private fun module(
         dispatchers: DispatcherProvider = TestDispatcherProvider(),
-    ) = ShizukuSetupModule(scope, dispatchers, adbSettings, shizukuManager, rootManager)
+    ) = ShizukuSetupModule(context, scope, dispatchers, adbSettings, shizukuManager, rootManager)
 
     @Test fun `first subscription emits Loading then Result`() {
         val mod = module()
@@ -152,6 +155,38 @@ class ShizukuSetupModuleTest : BaseTest() {
         collector.await { _, _ -> probeCount > before }
 
         probeCount shouldBeGreaterThan before
+
+        runBlocking { collector.cancelAndJoin() }
+    }
+
+    @Test fun `a manager for the other backend is reported as needing a restart`() {
+        // The active backend is latched per process, so its manager being absent while another one is
+        // installed is a state the user cannot leave from inside the app.
+        coEvery { shizukuManager.getManagerId() } returns null
+        coEvery { shizukuManager.installedManagerIds() } returns setOf("eu.darken.porter".toPkgId())
+
+        val mod = module()
+        val collector = mod.state.test(tag = "other", scope = scope)
+        collector.await { values, _ -> values.any { it is ShizukuSetupModule.Result } }
+
+        val result = collector.latestValues.last().shouldBeInstanceOf<ShizukuSetupModule.Result>()
+        result.isInstalled shouldBe false
+        result.otherManagerInstalled shouldBe true
+
+        runBlocking { collector.cancelAndJoin() }
+    }
+
+    @Test fun `no manager at all is not reported as needing a restart`() {
+        coEvery { shizukuManager.getManagerId() } returns null
+        coEvery { shizukuManager.installedManagerIds() } returns emptySet()
+
+        val mod = module()
+        val collector = mod.state.test(tag = "none", scope = scope)
+        collector.await { values, _ -> values.any { it is ShizukuSetupModule.Result } }
+
+        val result = collector.latestValues.last().shouldBeInstanceOf<ShizukuSetupModule.Result>()
+        result.isInstalled shouldBe false
+        result.otherManagerInstalled shouldBe false
 
         runBlocking { collector.cancelAndJoin() }
     }

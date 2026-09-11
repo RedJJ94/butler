@@ -1,8 +1,10 @@
 package eu.darken.butler.setup.core.shizuku
 
+import android.content.Context
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dagger.multibindings.IntoSet
 import eu.darken.butler.common.adb.AdbSettings
@@ -18,6 +20,7 @@ import eu.darken.butler.common.debug.logging.log
 import eu.darken.butler.common.debug.logging.logTag
 import eu.darken.butler.common.flow.replayingShare
 import eu.darken.butler.common.pkgs.Pkg
+import eu.darken.butler.common.pkgs.getLabel2
 import eu.darken.butler.common.rngString
 import eu.darken.butler.common.root.RootManager
 import eu.darken.butler.setup.core.SetupModule
@@ -43,6 +46,7 @@ import kotlin.time.Instant
 
 @Singleton
 class ShizukuSetupModule @Inject constructor(
+    @ApplicationContext private val context: Context,
     @AppScope private val appScope: CoroutineScope,
     private val dispatcherProvider: DispatcherProvider,
     private val adbSettings: AdbSettings,
@@ -95,9 +99,11 @@ class ShizukuSetupModule @Inject constructor(
     ) { _, useShizuku, useRoot ->
         val managerId = shizukuManager.getManagerId()
         val baseState = Result(
-            pkg = managerId ?: shizukuManager.shizukuPkgId,
+            pkg = managerId ?: shizukuManager.defaultManagerPkgId,
             useShizuku = useShizuku,
             isInstalled = managerId != null,
+            managerLabel = managerId?.let { context.packageManager.getLabel2(it) },
+            otherManagerInstalled = managerId == null && shizukuManager.installedManagerIds().isNotEmpty(),
             isCompatible = shizukuManager.isCompatible(),
             alsoHasRoot = useRoot,
         )
@@ -184,6 +190,15 @@ class ShizukuSetupModule @Inject constructor(
         val useShizuku: Boolean?,
         val isCompatible: Boolean = false,
         override val isInstalled: Boolean = false,
+        /** Display name of [pkg], null while no manager is installed. */
+        val managerLabel: String? = null,
+        /**
+         * No manager for the backend we connect through, but one for the other backend is installed.
+         *
+         * The backend is resolved once per process, so this state only clears on a restart: nothing
+         * the user does inside the app can make it go away.
+         */
+        val otherManagerInstalled: Boolean = false,
         val basicService: Boolean = false,
         val serviceState: ShizukuServiceState = ShizukuServiceState.NotChecked,
         val alsoHasRoot: Boolean = false,
