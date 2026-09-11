@@ -23,7 +23,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.PreviewWrapper as ComposePreviewWrapper
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import dagger.hilt.EntryPoint
@@ -35,7 +34,6 @@ import eu.darken.butler.common.adb.shizuku.ShizukuServiceState
 import eu.darken.butler.common.compose.ButlerPreviewWrapper
 import eu.darken.butler.common.compose.Preview2
 import eu.darken.butler.common.compose.PreviewWrapper
-import eu.darken.butler.common.pkgs.Pkg
 import eu.darken.butler.common.pkgs.getIcon2
 import eu.darken.butler.common.pkgs.getLabel2
 import eu.darken.butler.common.pkgs.toPkgId
@@ -122,20 +120,11 @@ fun RootShizukuActions(
                 )
 
                 connectionStatus?.let { status ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        if (shizukuState?.ourService == true && shizukuState.isInstalled) {
-                            ManagerIcon(pkg = shizukuState.pkg, size = 18.dp)
-                        }
-
-                        Text(
-                            text = status,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                        )
-                    }
+                    Text(
+                        text = status,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
                 }
             }
         }
@@ -204,32 +193,24 @@ private fun rememberManagerLabel(state: ShizukuSetupModule.Result?): String? {
 }
 
 @Composable
-private fun ManagerIcon(
-    modifier: Modifier = Modifier,
-    pkg: Pkg.Id,
-    size: Dp,
-) {
-    val context = LocalContext.current
-    AsyncImage(
-        model = remember(pkg) { context.packageManager.getIcon2(pkg) },
-        contentDescription = null,
-        modifier = modifier.size(size),
-    )
-}
-
-@Composable
 private fun AdbManagerAction(
     modifier: Modifier = Modifier,
     state: ShizukuSetupModule.Result,
     label: String?,
     onExecuteAction: (SetupAction) -> Unit,
 ) {
+    val context = LocalContext.current
+
     if (state.isInstalled) {
         OutlinedButton(
             modifier = modifier,
             onClick = { onExecuteAction(SetupAction.OpenAdbManager(state.pkg)) },
         ) {
-            ManagerIcon(pkg = state.pkg, size = ButtonDefaults.IconSize)
+            AsyncImage(
+                model = remember(state.pkg) { context.packageManager.getIcon2(state.pkg) },
+                contentDescription = null,
+                modifier = Modifier.size(ButtonDefaults.IconSize),
+            )
             Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
             Text(text = stringResource(R.string.setup_adb_open_manager_action, label ?: state.pkg.name))
         }
